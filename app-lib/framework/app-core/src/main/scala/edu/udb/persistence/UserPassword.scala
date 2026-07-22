@@ -3,6 +3,7 @@
  *
  * For the full copyright and license information,
  * please view the LICENSE file that was distributed with this source code.
+ * Userパスワードリポジトリ
  */
 
 package edu.udb.persistence
@@ -27,6 +28,7 @@ class UserPasswordRepository @Inject()(
 
   /**
    * Resolve a user's credential by user id (used at login).
+   * パスワードをUserIdによって検索する
    */
   def findByUserId(uid: User.Id): Future[Option[EntityEmbeddedId]] =
     RunDBAction(HostSpec.REPLICA): slick =>
