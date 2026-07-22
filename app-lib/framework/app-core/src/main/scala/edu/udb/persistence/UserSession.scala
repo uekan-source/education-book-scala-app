@@ -3,6 +3,7 @@
  *
  * For the full copyright and license information,
  * please view the LICENSE file that was distributed with this source code.
+ * Userセッションリポジトリ
  */
 
 package edu.udb.persistence
@@ -26,6 +27,7 @@ class UserSessionRepository @Inject()(
 
   /**
    * Resolve a session by its cookie token (the raw, unsigned form).
+   * トークン検索によってセッション見つける(レプリケーション遅延回避のためprimary指定)
    */
   def findByToken(token: Token): Future[Option[EntityEmbeddedId]] =
     RunDBAction: slick =>
@@ -36,6 +38,7 @@ class UserSessionRepository @Inject()(
 
   /**
    * Delete a session by its cookie token (logout). Returns the rows removed.
+   * トークン検索によってセッション削除(レプリケーション遅延回避のためprimary指定) 
    */
   def deleteByToken(token: Token): Future[Int] =
     RunDBAction: slick =>
