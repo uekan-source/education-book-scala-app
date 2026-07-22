@@ -3,6 +3,7 @@
  *
  * For the full copyright and license information,
  * please view the LICENSE file that was distributed with this source code.
+ * アプリ全体の窓口(Facade) ドメインが増えたらここに追記もする
  */
 
 package mvc
