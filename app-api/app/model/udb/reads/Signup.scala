@@ -3,6 +3,7 @@
  *
  * For the full copyright and license information,
  * please view the LICENSE file that was distributed with this source code.
+ * サインアップのJSON翻訳ファイル
  */
 
 package model.udb.reads
@@ -17,5 +18,6 @@ case class JsValueSignup(
   name:     String,
 )
 
+// 翻訳するためのオブジェクト
 object JsValueSignup:
   given Decoder[JsValueSignup] = deriveDecoder
