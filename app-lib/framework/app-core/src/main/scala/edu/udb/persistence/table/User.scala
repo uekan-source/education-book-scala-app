@@ -41,7 +41,7 @@ class UserTable @Inject()(ctx: SlickDatabaseContext)
     @col def updatedAt = column[LocalDateTime] ("updated_at", O.Timestamp(onUpdate = true))
     @col def createdAt = column[LocalDateTime] ("created_at", O.Timestamp)
 
-　　 // uuidとemaiを一意にする処理
+    // uuidとemaiを一意にする処理
     def ukey01 = index("ukey01", uuid,  unique = true)
     def ukey02 = index("ukey02", email, unique = true)
 
