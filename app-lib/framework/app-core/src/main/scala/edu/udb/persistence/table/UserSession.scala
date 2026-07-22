@@ -3,6 +3,7 @@
  *
  * For the full copyright and license information,
  * please view the LICENSE file that was distributed with this source code.
+ * Userセッションテーブル表
  */
 
 package edu.udb.persistence.table
@@ -41,6 +42,7 @@ class UserSessionTable @Inject()(ctx: SlickDatabaseContext)
     @col def updatedAt = column[LocalDateTime] ("updated_at", O.Timestamp(onUpdate = true))
     @col def createdAt = column[LocalDateTime] ("created_at", O.Timestamp)
 
+    // uidは他の端末でも同時にログインできるように一意にしない
     def ukey01 = index("ukey01", token, unique = true)
     def key01  = index("key01", uid)
 
