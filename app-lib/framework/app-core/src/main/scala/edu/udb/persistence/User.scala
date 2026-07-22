@@ -3,6 +3,7 @@
  *
  * For the full copyright and license information,
  * please view the LICENSE file that was distributed with this source code.
+ * Userリポジトリ
  */
 
 package edu.udb.persistence
@@ -26,6 +27,7 @@ class UserRepository @Inject()(
 
   /**
    * Resolve a user by login email (used by signup/login).
+   * Userを検索するときにemailで検索するメソッド(emailは一意なため)
    */
   def findByEmail(email: String): Future[Option[EntityEmbeddedId]] =
     RunDBAction(HostSpec.REPLICA): slick =>
