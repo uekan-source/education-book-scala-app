@@ -3,6 +3,7 @@
  *
  * For the full copyright and license information,
  * please view the LICENSE file that was distributed with this source code.
+ * Userパスワードのエンティティモデル
  */
 
 package edu.udb.model
@@ -26,6 +27,7 @@ case class UserPassword(
 
   /**
    * Verify a raw password against the stored PBKDF2 hash.
+   * 実際に入力された生のパスワード(raw)とハッシュを比較している
    */
   def verify(raw: String): Boolean = PBKDF2.compare(raw, hash)
 
@@ -41,6 +43,7 @@ object UserPassword:
 
   /**
    * Build a new credential record, hashing the raw password with PBKDF2.
+   * パスワードを生成する際にハッシュ化しているメソッド
    */
   def hashed(uid: User.Id, raw: String): WithNoId =
     UserPassword(
