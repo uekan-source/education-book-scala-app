@@ -3,6 +3,7 @@
  *
  * For the full copyright and license information,
  * please view the LICENSE file that was distributed with this source code.
+ * サインアップ処理
  */
 
 package controllers.auth
@@ -32,10 +33,10 @@ class SignupController @Inject()(
 ) extends BaseAbstractController(cc):
 
   def invoke = Action.async: request =>
-    // Step-1: Parse the JSON body.
+    // Step-1: Parse the JSON body. JSON翻訳(同期処理)
     EitherT.fromEither[Future]:
       request.decode[JsValueSignup]
-    // Step-2: Validate.
+    // Step-2: Validate. バリデーションチェック(同期処理)
     .subflatMap: body =>
       val email = body.email.trim.toLowerCase
       val name  = body.name.trim
@@ -43,14 +44,14 @@ class SignupController @Inject()(
       else if body.password.length < 8 then Left(BadRequest("password must be at least 8 characters"))
       else if name.isEmpty then Left(BadRequest("name is required"))
       else Right((email, body.password, name))
-    // Step-3: Reject a duplicate email.
+    // Step-3: Reject a duplicate email. emailの二重登録確認(非同期処理)
     .flatMapF { case (email, password, name) =>
       repos.udb.user.findByEmail(email).map {
         case Some(_) => Left(Conflict("email already registered"))
         case None    => Right((email, password, name))
       }
     }
-    // Step-4: Create the user + credential + session, set the cookie.
+    // Step-4: Create the user + credential + session, set the cookie. DBへの登録処理(非同期処理)
     .semiflatMap { case (email, password, name) =>
       for
         uid <- repos.udb.user.add(User(
