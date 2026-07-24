@@ -14,6 +14,12 @@ import play.api.libs.json.Json
 import mvc.{ AppControllerComponents, BaseAbstractController }
 
 /**
+ * 現在ログインしているユーザーをセッションクッキーから取得して返すコントローラー。
+ * GET /user/api/me  →  200でユーザー情報を返す、またはログインしていない場合は401を返す。
+ *
+ * クッキー検証とセッションルックアップは [[mvc.auth.AuthProfile]] で行われ、
+ * このコントローラーは戻ってきた `Either` の結果を返すだけである。
+ *
  * Returns the currently logged-in user resolved from the session cookie.
  * GET /user/api/me  →  200 with the user, or 401 if not logged in.
  *
