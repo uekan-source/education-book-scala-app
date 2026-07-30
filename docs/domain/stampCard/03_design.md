@@ -9,13 +9,17 @@
 
 
 ## ER 図
+## ER 図
+
+まず、データの繋がりだけを確認します。**何が必須か、使用状態をどう持つかは、この図では決めません。**
+
 ```mermaid
 erDiagram
-    User ||--o{ Stamp : "1人が複数個持つ"
-    User ||--o{ StampCoupon : "1人が複数枚持つ"
-    Order |o--o| Stamp : "1注文で1個押される"
-    StampCoupon ||--|{ Stamp : "10個が消費されて1枚になる"
-    Order |o--o| StampCoupon : "1注文で1枚使う"
+    User            ||--o{ Stamp       : "1人が複数個"
+    User            ||--o{ StampCoupon : "1人が複数枚"
+    Order           |o--o| Stamp       : "1注文で1個押される"
+    StampCoupon     ||--|{ Stamp       : "10個が消費されて1枚になる"
+    Order           |o--o| StampCoupon : "1注文で1枚使う"
 
     User {
         Id 会員ID
@@ -28,17 +32,21 @@ erDiagram
         Id 会員ID
         Id 注文ID
         LocalDate 付与日
-        Id クーポンID "消費先。空なら未消費"
+        Id 消費先クーポンID "空なら未消費"
         LocalDateTime 取り消し日時 "空なら有効"
     }
     StampCoupon {
         Id クーポンID
         Id 会員ID
-        Status 利用状態 "UNUSED / USED"
-        Id 使用注文ID "空なら未使用"
         LocalDateTime 発行日時
+        状態 使用状態 "使用済 / 未使用"
+        使用記録 使用した注文と日時 "空なら未使用"
     }
 ```
+
+> **この図で確認するのは「どこに何があって、いくつ繋がるか」だけです。**
+> スタンプの有効期限をどう表すか、クーポンの使用済みをどう表すか、必須か任意かは、
+> このあとの [EntityModel](#entitymodel) で定義します。
 
 ## EntityModel
 ### スタンプ
