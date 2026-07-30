@@ -6,7 +6,7 @@
 
 注文 1 回につきスタンプを 1 個付与し、10 個たまった時点で無料クーポンを 1 枚発行する。スタンプは店舗をまたいで会員ごとに共通で、付与日から 1 年で失効する。会員はアプリの専用画面で保有数を確認できる。
 
-既存の `User` `Order` `OrderDetail` `Payment` `Shop` は変更しない。`sales` コンテキストにエンティティを 2 つ追加する。
+既存の `User` `Order` `OrderItem` `Payment` `Shop` は変更しない。`sales` コンテキストにエンティティを 2 つ追加する。
 
 ## 2. 用語
 
@@ -187,8 +187,8 @@ object StampCoupon:
 
 | エンティティ | テーブル | 役割 | 多重度 |
 |---|---|---|---|
-| `Stamp` | `stamp` | 注文 1 回ごとに押されるスタンプ 1 個分 | `User` と 1:*、`Order` と 1:0..1 |
-| `StampCoupon` | `stamp_coupon` | スタンプ 10 個と引き換えに発行される無料の権利 | `User` と 1:*、`Stamp` と 1:10 |
+| `Stamp` | `sales_stamp` | 注文 1 回ごとに押されるスタンプ 1 個分 | `User` と 1:*、`Order` と 1:0..1 |
+| `StampCoupon` | `sales_stamp_coupon` | スタンプ 10 個と引き換えに発行される無料の権利 | `User` と 1:*、`Stamp` と 1:10 |
 
 既存で足りるもの。いずれも変更しない。
 
@@ -196,7 +196,7 @@ object StampCoupon:
 |---|---|
 | `User` | 会員そのもの。スタンプ数を保存しないため、属性を足す必要がない |
 | `Order` | スタンプを押すきっかけ。参照されるだけで、`Order` 側は何も知らない |
-| `OrderDetail` | 無料対象の商品を特定するのに使うが、持ち方は変わらない |
+| `OrderItem` | 無料対象の商品を特定するのに使うが、持ち方は変わらない |
 | `Payment` | 付与のタイミング（支払い確定）を知るのに使うが、持ち方は変わらない |
 | `Shop` | 店舗をまたいで共通のため、店舗ごとのスタンプ設定を持たない |
 
@@ -206,11 +206,11 @@ object StampCoupon:
 
 | どこに | 何を |
 |---|---|
-| `stamp.user_id` | `User.Id` |
-| `stamp.order_id` | `Order.Id` |
-| `stamp.coupon_id` | `StampCoupon.Id`（任意） |
-| `stamp_coupon.user_id` | `User.Id` |
-| `stamp_coupon.used_order_id` | `Order.Id`（任意） |
+| `sales_stamp.user_id` | `User.Id` |
+| `sales_stamp.order_id` | `Order.Id` |
+| `sales_stamp.coupon_id` | `StampCoupon.Id`（任意） |
+| `sales_stamp_coupon.user_id` | `User.Id` |
+| `sales_stamp_coupon.used_order_id` | `Order.Id`（任意） |
 
 ## 8. 置き場所
 
@@ -226,15 +226,21 @@ object StampCoupon:
 | 管理者が別にいる | ✗ | 会員の行為で自動的に変わる |
 | 他のコンテキストから参照されるだけ | ✗ | `User.Id` と `Order.Id` を参照する側。依存が逆流する |
 
-テーブル名にコンテキスト名は重ねない。名前順に並べると次のようになる。
+テーブル名はコンテキストのパスを頭に付ける。名前順に並べると次のようになる。
 
 ```
-order          ← 既存
-order_detail   ← 既存
-payment        ← 既存
-stamp          ← 今回追加
-stamp_coupon   ← 今回追加
+sales_cart                ← 既存
+sales_cart_item           ← 既存
+sales_cart_item_option    ← 既存
+sales_order               ← 既存
+sales_order_item          ← 既存
+sales_order_item_option   ← 既存
+sales_payment             ← 既存
+sales_stamp               ← 今回追加
+sales_stamp_coupon        ← 今回追加
 ```
+
+`sales_stamp*` が末尾に固まる。コンテキスト名をマージするのは `Shop` / `shop` のようにエンティティ名がコンテキスト名で始まる場合のみで、`Stamp` は該当しない。
 
 ---
 
