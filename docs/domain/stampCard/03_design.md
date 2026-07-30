@@ -9,7 +9,36 @@
 
 
 ## ER 図
-（**データの繋がりだけ**。日本語の項目名と多重度が読めればよい）
+```mermaid
+erDiagram
+    User ||--o{ Stamp : "1人が複数個持つ"
+    User ||--o{ StampCoupon : "1人が複数枚持つ"
+    Order |o--o| Stamp : "1注文で1個押される"
+    StampCoupon ||--|{ Stamp : "10個が消費されて1枚になる"
+    Order |o--o| StampCoupon : "1注文で1枚使う"
+
+    User {
+        Id 会員ID
+    }
+    Order {
+        Id 注文ID
+    }
+    Stamp {
+        Id スタンプID
+        Id 会員ID
+        Id 注文ID
+        LocalDate 付与日
+        Id クーポンID "消費先。空なら未消費"
+        LocalDateTime 取り消し日時 "空なら有効"
+    }
+    StampCoupon {
+        Id クーポンID
+        Id 会員ID
+        Status 利用状態 "UNUSED / USED"
+        Id 使用注文ID "空なら未使用"
+        LocalDateTime 発行日時
+    }
+```
 
 ## EntityModel
 ### スタンプ
