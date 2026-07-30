@@ -214,8 +214,8 @@ object StampCoupon:
 
 | エンティティ | テーブル | 役割 | 多重度 |
 |---|---|---|---|
-| `Stamp` | `stamp` | 注文 1 回ごとに押されるスタンプ 1 個分 | `User` と `1:*`、`Order` と `1:0..1` |
-| `StampCoupon` | `stamp_coupon` | スタンプ 10 個と引き換えに発行される無料の権利 | `User` と `1:*`、`Stamp` と `1:10` |
+| `Stamp` | `sales_stamp` | 注文 1 回ごとに押されるスタンプ 1 個分 | `User` と `1:*`、`Order` と `1:0..1` |
+| `StampCoupon` | `sales_stamp_coupon` | スタンプ 10 個と引き換えに発行される無料の権利 | `User` と `1:*`、`Stamp` と `1:10` |
 
 **追加は 2 つだけです。** 洗い出しで拾った 15 個の名詞のうち、13 個は既存で足りるか、保存しないものでした。
 
@@ -225,7 +225,7 @@ object StampCoupon:
 |---|---|
 | `User` | 会員そのもの。**スタンプ数は保存しないので、属性を足す必要がありません** |
 | `Order` | スタンプを押すきっかけ。`Stamp` から参照されるだけで、`Order` 側は何も知りません |
-| `OrderDetail` | 無料対象の商品を特定するのに使いますが、持ち方は変わりません |
+| `OrderItem` | 無料対象の商品を特定するのに使いますが、持ち方は変わりません |
 | `Payment` | 付与のタイミング（支払い確定）を知るのに使いますが、持ち方は変わりません |
 | `Shop` | 「店舗をまたいで共通」なので、店舗ごとのスタンプ設定は持ちません |
 
@@ -243,11 +243,11 @@ object StampCoupon:
 
 | どこに | 何を | なぜ |
 |---|---|---|
-| `stamp.user_id` | `User.Id` | 会員のスタンプを数えるのが最頻の操作（→ [論点4](#論点4stamp-に-userid-を持つか-orderid-から辿るか)） |
-| `stamp.order_id` | `Order.Id` | 「いつ・どの注文で押されたか」を一覧するため |
-| `stamp.coupon_id` | `StampCoupon.Id`（任意） | 消費先。`NULL` なら未消費 |
-| `stamp_coupon.user_id` | `User.Id` | 会員の未使用クーポンを引くため |
-| `stamp_coupon.used_order_id` | `Order.Id`（任意） | 使用した注文。`NULL` なら未使用 |
+| `sales_stamp.user_id` | `User.Id` | 会員のスタンプを数えるのが最頻の操作（→ [論点4](#論点4stamp-に-userid-を持つか-orderid-から辿るか)） |
+| `sales_stamp.order_id` | `Order.Id` | 「いつ・どの注文で押されたか」を一覧するため |
+| `sales_stamp.coupon_id` | `StampCoupon.Id`（任意） | 消費先。`NULL` なら未消費 |
+| `sales_stamp_coupon.user_id` | `User.Id` | 会員の未使用クーポンを引くため |
+| `sales_stamp_coupon.used_order_id` | `Order.Id`（任意） | 使用した注文。`NULL` なら未使用 |
 
 ## 置き場所（コンテキスト）
 
@@ -274,17 +274,21 @@ object StampCoupon:
 
 新しいコンテキスト（`loyalty` など）も作りません。専用画面で見る／店舗をまたいで共通／`Order` より寿命が長いといった新設の根拠はありますが、**触る人が `Order` と同じ**なので分ける理由がありません（→ [論点6](#論点6新しいコンテキストを作るか)）。**コンテキストは 4 つのまま、増えません。**
 
-テーブル名は `sales_stamp` にしていません（コンテキスト名を重ねないという既存の規則どおり）。名前順に並べると、こうなります。
+テーブル名はコンテキストのパスを頭に付けます。名前順に並べると、こうなります。
 
 ```
-order          ← 既存
-order_detail   ← 既存
-payment        ← 既存
-stamp          ← 今回追加
-stamp_coupon   ← 今回追加
+sales_cart                ← 既存
+sales_cart_item           ← 既存
+sales_cart_item_option    ← 既存
+sales_order               ← 既存
+sales_order_item          ← 既存
+sales_order_item_option   ← 既存
+sales_payment             ← 既存
+sales_stamp               ← 今回追加
+sales_stamp_coupon        ← 今回追加
 ```
 
-`stamp` の隣に `stamp_coupon` が来て、`Stamp*` 一族として固まっています。
+`sales_stamp` の隣に `sales_stamp_coupon` が来て、`Stamp*` 一族として末尾に固まっています。コンテキスト名をマージするのは `Shop` / `shop` のようにエンティティ名がコンテキスト名で始まる場合だけなので、`Stamp` は該当しません。
 
 ---
 
