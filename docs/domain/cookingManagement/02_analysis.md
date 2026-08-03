@@ -22,6 +22,8 @@
 | **状態を変える** | できあがりにする | `Order.Status` の遷移（調理中 → 受取準備完了） |
 | **状態を変える** | 受渡し完了にする | `Order.Status` の遷移（受取準備完了 → 受渡し完了） |
 | **状態を変える** | 未受け取りにする | `Order.Status` の遷移（受取準備完了 → 未受け取り）※値を追加 |
+| **状態を変える** | 店舗キャンセルにする | `Order.Status` の遷移（受付／調理中 → 店舗キャンセル）※値を追加 |
+| **状態を変える** | キャンセル理由を書く | `Order` の備考欄に書く（UPDATE）※列を追加 |
 | **状態を変える** | 売り切れにする | `ShopMenuStock.Status` の遷移（提供可 → 売り切れ） |
 | **値を返す** | 受け取り時間の近い順に取得する | モデル／リポジトリのメソッド。**保存しない。列は増やさない** |
 
@@ -51,8 +53,10 @@ EntityModel の「型では守れない決めごと」に書く。
 | 調理中 | **対象外**（`Order.Status` の値） | 状態の 1 つ。既存の値で足りる |
 | 受取準備完了 | **対象外**（`Order.Status` の値） | 状態の 1 つ。既存の値で足りる |
 | 受渡し完了 | **対象外**（`Order.Status` の値） | 状態の 1 つ。既存の値で足りる |
-| キャンセル | **対象外**（`Order.Status` の値） | 状態の 1 つ。既存の値で足りる |
-| 未受け取り | **対象外**（`Order.Status` の値） | 状態の 1 つ。**ただし既存の 5 値に無いので、値を 1 つ追加する** |
+| キャンセル（会員都合） | **対象外**（`Order.Status` の値） | 状態の 1 つ。既存の `IS_CANCELED` を `IS_CANCELED_BY_USER` に改名する |
+| 未受け取り | **対象外**（`Order.Status` の値） | 状態の 1 つ。**既存の値に無いので追加する** |
+| 店舗キャンセル | **対象外**（`Order.Status` の値） | 状態の 1 つ。**既存の値に無いので追加する**。会員都合と分けて測るため |
+| キャンセル理由 | **属性** | `Order` の列。会員向け・店舗向けの 2 つを持つ |
 | 売り切れ | **既存エンティティ**（`ShopMenuStock`） | 店舗 × 商品の状態。**今回の操作対象** |
 | 閉店 | **対象外** | 閉店時刻を判定しない。スタッフがボタンを押したときが「閉店時」（①で確認済み） |
 | 混雑 | **対象外（スコープ外）** | 混雑の自動判定はしない（①で確認済み）。スタッフが並び替えるだけ |
@@ -94,7 +98,11 @@ EntityModel の「型では守れない決めごと」に書く。
 
 | 日本語 | 英語名 | 意味 | 多重度・備考 |
 |---|---|---|---|
-| 未受け取り | `Order.Status.IS_UNCLAIMED` | 受取準備完了のまま閉店を迎え、会員が受け取りに来なかった注文 | `Order.Status` に**値を 1 つ追加**。既存の 5 値は変えない |
+| 未受け取り | `Order.Status.IS_UNCLAIMED` | 受取準備完了のまま閉店を迎え、会員が受け取りに来なかった注文 | `Order.Status` の値。`code = -3` |
+| 会員キャンセル | `Order.Status.IS_CANCELED_BY_USER` | 会員の都合で取り消された注文 | `Order.Status` の値。`code = -1` |
+| 店舗キャンセル | `Order.Status.IS_CANCELED_BY_SHOP` | 材料切れなど店舗の都合で取り消された注文 | `Order.Status` の値。`code = -2` |
+| 会員向け備考 | `Order.noteForUser` | 会員に見せる理由。キャンセル・未受け取りの説明 | `Order` の列（任意） |
+| 店舗向け備考 | `Order.noteForShop` | 店舗内部のメモ。会員には見せない | `Order` の列（任意） |
 
 ### 衝突していた呼び方（統一する）
 
@@ -126,22 +134,25 @@ EntityModel の「型では守れない決めごと」に書く。
 ### 既存の値に混ぜて並べる
 
 ```scala
-enum Status(val code: Short) extends EnumStatus[Short]:
-  case IS_ACCEPTED  extends Status(code = 0)  // 受付
-  case IS_COOKING   extends Status(code = 1)  // 調理中
-  case IS_READY     extends Status(code = 2)  // 受取準備完了
-  case IS_DELIVERED extends Status(code = 3)  // 受渡し完了
-  case IS_CANCELED  extends Status(code = 4)  // キャンセル
-  case IS_UNCLAIMED extends Status(code = 5)  // 未受け取り  ← 今回追加
+enum Status(val code: Int) extends EnumStatus[Int]:
+  case IS_ACCEPTED         extends Status(code =  100) // 受付
+  case IS_COOKING          extends Status(code =  200) // 調理中
+  case IS_READY            extends Status(code =  300) // 受取準備完了
+  case IS_DELIVERED        extends Status(code =  400) // 受渡し完了
+  case IS_CANCELED_BY_USER extends Status(code =   -1) // 会員によるキャンセル  ← 今回追加
+  case IS_CANCELED_BY_SHOP extends Status(code =   -2) // 店舗によるキャンセル  ← 今回追加
+  case IS_UNCLAIMED        extends Status(code =   -3) // 未受け取り            ← 今回追加
 ```
 
 見るポイント。
 
 - **`IS_` 接頭辞は既存にそろえる。** 雛形の `User.Status`（`IS_ACTIVE` / `IS_INACTIVE`）と同じ流儀
-- **`code = 5` を新しく振る。既存の 0〜4 は絶対に変えない。**
-  DB には `code` の数値が保存されているので、番号を振り直すと過去のデータの意味が変わる
+- **符号が意味を持つ。** 正 ＝ 受け渡しまで正常に進む流れ、負 ＝ 商品が渡らずに終わった。
+  `code > 0` で「正常に完了したか」を判定できる
+- **正の値は 100 刻み。** 間に状態が増えても `250` で挿入できる
+- **0 は使わない。** 「何も設定されていない」と区別できなくなる
 - **値は業務フローの順に並べる。** 名前順ではなく**遷移の順序**で並べるほうが読める。
-  `IS_CANCELED` と `IS_UNCLAIMED` は終端なので末尾
+  負の終端状態は末尾
 
 ### 候補の評価
 
@@ -185,4 +196,4 @@ enum Status(val code: Short) extends EnumStatus[Short]:
   → いいえ → 値オブジェクト
 ```
 
-**「既存だから対象外」ではない。** 判定は「今回追加・変更するモデルが、それを参照するか」。。
+**「既存だから対象外」ではない。** 判定は「今回追加・変更するモデルが、それを参照するか」。
