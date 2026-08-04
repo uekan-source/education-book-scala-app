@@ -76,7 +76,7 @@ erDiagram
         Id usedOrderId "使用注文ID"
         LocalDateTime usedAt "使用日時"
         Status state "クーポンの状態"
-        LocalDateTime expiresAt "有効期限"
+        LocalDate expiresAt "有効期限"
         LocalDateTime updatedAt "更新日時"
         LocalDateTime createdAt "作成日時"
     }
@@ -166,7 +166,7 @@ case class UserCoupon(
   usedOrderId: Option[Order.Id],       // 使用した注文。None ＝ 未使用
   usedAt:      Option[LocalDateTime],  // 使用日時。None ＝ 未使用
   state:       Status,                 // クーポンの状態
-  expiresAt:   LocalDateTime,          // 有効期限（作成日時 + マスタの validDays）
+  expiresAt:   LocalDate,          // 有効期限（作成日時 + マスタの validDays）
   updatedAt:   LocalDateTime = Now,    // データ更新日
   createdAt:   LocalDateTime = Now     // データ作成日。配られた日時を兼ねる
 ) extends EntityModel[Id]
