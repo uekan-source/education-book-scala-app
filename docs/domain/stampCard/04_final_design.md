@@ -1,6 +1,6 @@
 # スタンプカード（ポイント） — 詳細要件定義
 
-対象：会員のスタンプ付与と割引クーポン ／ 前提：[要件定義](./01_REQUIREMENTS_stamp_card.md)で合意済み
+対象：会員のスタンプ付与と割引クーポン ／ 前提：[要件定義](./p1_01_REQUIREMENTS.md)で合意済み
 
 ## 1. 概要
 
@@ -34,8 +34,8 @@ erDiagram
     User   ||--o{ CouponStamp : "1:*"
     User   ||--o{ Coupon      : "1:*"
     Order  |o--o| CouponStamp : "1:1"
-    Coupon |o--o{ CouponStamp : "0..1:0..*"
-    Order  |o--o| Coupon      : "1:0..1"
+    Coupon |o--o{ CouponStamp : "1:*"
+    Order  |o--o| Coupon      : "1:1"
 
     User {
         Id 会員ID
@@ -67,7 +67,7 @@ erDiagram
 図で読み取ってほしいのは 3 点。
 
 - クーポンスタンプに有効期限も付与日時もない。スタンプは失効しない（論点1）。
-- クーポンとスタンプは `0..1 : 0..*`。`1:10` 固定ではない。誕生日クーポンはスタンプ 0 個で付与される（論点5）。
+- クーポンとスタンプは `1:*`。`1:10` 固定ではない。誕生日クーポンはスタンプ 0 個で付与される（論点5）。
 - クーポンは `MenuItem` を参照しない。金券型のため対象商品を持たない（論点2）。
 
 ## 4. モデル定義
@@ -217,8 +217,8 @@ object Coupon:
 
 | エンティティ | テーブル | 役割 | 多重度 |
 |---|---|---|---|
-| `CouponStamp` | `sales_coupon_stamp` | 受け渡し 1 回ごとに押されるスタンプ 1 個分 | `User` と 1:*、`Order` と 1:1、`Coupon` と 0..1:1 |
-| `Coupon` | `sales_coupon` | 注文の合計から一定額を引ける権利 | `User` と 1:*、`Order` と 1:0..1、`CouponStamp` と 1:0..* |
+| `CouponStamp` | `sales_coupon_stamp` | 受け渡し 1 回ごとに押されるスタンプ 1 個分 | `User` と 1:*、`Order` と 1:1、`Coupon` と 1:* の子側 |
+| `Coupon` | `sales_coupon` | 注文の合計から一定額を引ける権利 | `User` と 1:*、`Order` と 1:1、`CouponStamp` と 1:* |
 
 ### 既存で足りるもの
 
@@ -366,7 +366,7 @@ sales_payment             ← 既存
 
 ## 論点5：スタンプ 0 個のクーポン付与に対応するか
 
-判断：対応する。`Coupon` と `CouponStamp` の多重度を `1:0..*` にする。
+判断：対応する。`Coupon` と `CouponStamp` の多重度を `1:*` にする。
 
 要求文はスタンプ 10 個で 1 枚付与する仕組みだけを求めている。しかし将来、誕生日クーポンやキャンペーンクーポンを出す想定があり、これらはスタンプ 0 個で付与される。
 
