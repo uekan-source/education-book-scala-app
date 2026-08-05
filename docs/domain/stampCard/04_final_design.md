@@ -26,12 +26,13 @@
 | 配布中 / 配布終了 | そのクーポンを新しく配るかどうか | 有効 / 無効 |
 | 貯め中 | 会員クーポンのうち、必要スタンプ数に達していないもの | 未完成、途中 |
 | 使用可能 | 必要スタンプ数に達し、まだ使っていないもの | 有効、完成 |
+| 無効化 | 対象メニューの販売終了により、期限前に使えなくなった会員クーポン | 期限切れ |
 
 「クーポン」が 2 つのものを指していた。「夏はドリンクのクーポンを配ろう」は種類の話、「私のクーポンが期限切れになった」は 1 枚の話である。本部が登録するものを「クーポン」、会員が持つものを「会員クーポン」と呼び分ける。
 
 「カード」と「クーポン」は同じモデルである。貯めている途中は「カード」、完成したら「クーポン」と業務では呼ばれるが、`UserCoupon` の状態が違うだけ。
 
-「配布終了」と「期限切れ」は別物である。配布終了は新しく配らないこと、期限切れは持っているものが使えなくなること。配布終了にしても、すでに配られた会員クーポンは期限まで使える。
+「配布終了」「期限切れ」「無効化」は別物である。配布終了は新しく配らないこと、期限切れは日付によって使えなくなること、無効化は対象メニューの販売終了によって期限前に使えなくなること。通常の配布終了にしても、すでに配られた会員クーポンは期限まで使える。
 
 ## 3. データ構成
 
@@ -144,7 +145,7 @@ object Coupon:
 - `requiredStampCount` は 0 以上。0 ならスタンプなしで配れる。
 - `requiredStampCount > 0` のマスタは、同時に 1 つだけ配布中にする。スタンプを貯める先が自動で選ばれるため、複数あると決まらない。マスタの登録は本部が行うので運用で担保する（論点4）。
 - `validDays` は 1 以上。
-- 配布終了にしても、すでに配られた会員クーポンは期限まで使える。`MenuItem` の販売終了と同じ扱い。
+- 通常の配布終了にしても、すでに配られた会員クーポンは期限まで使える。対象 `MenuItem` の販売終了時は、会員クーポンを無効化する。
 - クーポンの条件（対象商品・割引額・必要スタンプ数・有効日数）は登録後に変更しない。条件を変えるときは新しい `Coupon` を登録し、旧クーポンを配布終了にする。
 
 保存されるデータの例。
@@ -183,6 +184,7 @@ object UserCoupon:
     case IS_AVAILABLE  extends Status(code = 200) // 使用可能
     case IS_USED       extends Status(code =  -1) // 使用済み
     case IS_EXPIRED    extends Status(code =  -2) // 期限切れ
+    case IS_INVALIDATED extends Status(code = -3) // 対象メニュー販売終了で無効化
 ```
 
 `couponId` は必須である。どのマスタから配られたかが必ず分かるため、クーポン別の使用状況が集計できる。
@@ -211,6 +213,7 @@ object UserCoupon:
 - `usedOrderId` は一意。1 注文で使えるクーポンは 1 枚まで。
 - 使用時は `state` が `IS_AVAILABLE` かつ `expiresAt` を過ぎていないことを両方確認する。`state` はキャッシュであり、正は `expiresAt` である（論点3）。
 - `expiresAt` は配った日の `LocalDate + validDays` として計算し、以後変えない。期限日は利用可能で、翌日から期限切れとする。
+- 対象メニューの販売終了時は、`IS_COLLECTING` と `IS_AVAILABLE` を `IS_INVALIDATED` に更新する。通常の配布終了では更新しない。
 
 保存されるデータの例（会員 ID 100、今が 2026-08-03）。
 
@@ -252,7 +255,7 @@ object UserCouponStamp:
 型では守れない決めごと。
 
 - `orderId` は一意。1 回の受け渡しにつきスタンプは 1 個。
-- 親の `UserCoupon` が `IS_EXPIRED` になったら、紐づくスタンプは削除する。日次バッチで行う。
+- 親の `UserCoupon` が `IS_EXPIRED` または `IS_INVALIDATED` になったら、紐づくスタンプは削除する。日次バッチまたは販売終了時の処理で行う。
 - `UserCoupon` が `IS_COLLECTING` 以外のとき、スタンプを追加しない。
 
 ### 4.4 区分値
@@ -262,7 +265,7 @@ object UserCouponStamp:
 | エンティティ | 区分値 | 値の数 |
 |---|---|---|
 | `Coupon` | `Status`（配布の状態） | 2 |
-| `UserCoupon` | `Status`（クーポンの状態） | 4 |
+| `UserCoupon` | `Status`（クーポンの状態） | 5 |
 | `UserCouponStamp` | なし | — |
 
 `UserCouponStamp` が区分値を持たないのは、行を足すだけの操作しかないため。
@@ -274,6 +277,7 @@ object UserCouponStamp:
 | 使用可能 | `UserCoupon.state` が `IS_AVAILABLE` | する |
 | 使用済み | `UserCoupon.state` が `IS_USED` | する |
 | 期限切れ | `UserCoupon.state` が `IS_EXPIRED` | する（ただしキャッシュ） |
+| 無効化 | `UserCoupon.state` が `IS_INVALIDATED` | する |
 | あと何個か | `requiredStampCount − スタンプ数` | しない |
 | 無料券 / 割引券 | `Coupon.discount` の有無 | する（区分値ではない） |
 
@@ -326,6 +330,14 @@ WHERE user_coupon_id = ?
 2. `IS_EXPIRED` になった `UserCoupon` に紐づく `UserCouponStamp` を削除する。
 
 ステップ 2 により、貯めきれなかったスタンプが溜まり続けることを防ぐ。親子関係にしたことで、削除対象が `userCouponId` で引ける。
+
+## 8.1 対象メニューを販売終了にするとき
+
+1. そのメニューを対象とする `Coupon` を `IS_INACTIVE` に更新する。
+2. その `Coupon` に紐づく `IS_COLLECTING` と `IS_AVAILABLE` の `UserCoupon` を `IS_INVALIDATED` に更新する。
+3. `IS_INVALIDATED` になった `UserCoupon` に紐づく `UserCouponStamp` を削除する。
+
+一時的な品切れではこの処理を行わない。対象メニューの販売終了だけが無効化のトリガーである。
 
 ## 9. エンティティ一覧
 
