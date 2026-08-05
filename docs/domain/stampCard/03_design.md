@@ -1,6 +1,6 @@
 # 問題1：スタンプカード（ポイント） — 詳細要件定義
 
-対象：クーポンの管理と、会員のスタンプ付与 ／ 前提：[要件定義](./p1_01_REQUIREMENTS.md)で合意済み
+対象：クーポンの管理と、会員のスタンプ付与 ／ 前提：[要件定義](./01_requirements.md)で合意済み
 
 ---
 
@@ -77,7 +77,7 @@ erDiagram
         Id usedOrderId "使用注文ID"
         LocalDateTime usedAt "使用日時"
         Status state "クーポンの状態"
-        LocalDateTime expiresAt "有効期限"
+        LocalDate expiresAt "有効期限"
         LocalDateTime updatedAt "更新日時"
         LocalDateTime createdAt "作成日時"
     }
@@ -149,6 +149,7 @@ object Coupon:
 - **`requiredStampCount > 0` のマスタは、同時に 1 つだけ配布中にする。** スタンプを貯める先が自動で選ばれるため、複数あると決まりません。マスタの登録は本部が行うので運用で担保します（→ [論点4](#論点4スタンプを貯める先をどう決めるか)）
 - **`validDays` は 1 以上**
 - **配布終了にしても、すでに配られた `UserCoupon` は期限まで使える。** `MenuItem` の販売終了と同じ扱いです
+- **クーポンの条件（対象商品・割引額・必要スタンプ数・有効日数）は登録後に変更しない。** 条件を変えるときは新しい `Coupon` を登録し、旧クーポンを配布終了にします
 
 **保存されるデータの例**
 
@@ -170,7 +171,7 @@ case class UserCoupon(
   usedOrderId: Option[Order.Id],       // 使用した注文。None ＝ 未使用
   usedAt:      Option[LocalDateTime],  // 使用日時。None ＝ 未使用
   state:       Status,                 // クーポンの状態
-  expiresAt:   LocalDateTime,          // 有効期限（作成日時 + マスタの validDays）
+  expiresAt:   LocalDate,              // 有効期限（作成日 + マスタの validDays）
   updatedAt:   LocalDateTime = Now,    // データ更新日
   createdAt:   LocalDateTime = Now     // データ作成日。配られた日時を兼ねる
 ) extends EntityModel[Id]
@@ -212,17 +213,17 @@ object UserCoupon:
 - **会員あたり、`IS_COLLECTING` の行は最大 1 枚。** 1 回の受け渡しで押されるスタンプは 1 個なので、貯める先が 2 つあると決まりません
 - **`usedOrderId` は一意。** 1 注文で使えるクーポンは 1 枚までです
 - **使用時は `state` が `IS_AVAILABLE` かつ `expiresAt` を過ぎていないことを両方確認する。** `state` はキャッシュであり、**正は `expiresAt`** です（→ [論点3](#論点3期限切れを区分値で持つか都度計算するか)）
-- **`expiresAt` は配った時点で `createdAt + validDays` として計算し、以後変えない**
+- **`expiresAt` は配った日の `LocalDate + validDays` として計算し、以後変えない。** 期限日は利用可能で、翌日から期限切れとします
 
 **保存されるデータの例**（会員 ID 100、今が 2026-08-03）
 
 | id | couponId | state | usedOrderId | expiresAt | 業務での状態 |
 |---|---|---|---|---|---|
-| 51 | 1 | `IS_USED` | `Some(5120)` | 2026-11-02 10:15 | 使用済み |
-| 52 | 1 | `IS_AVAILABLE` | `None` | 2027-06-20 19:40 | 使える |
-| 53 | 1 | `IS_COLLECTING` | `None` | 2027-07-15 12:05 | **貯め中**（スタンプ 7 個） |
-| 54 | 2 | `IS_AVAILABLE` | `None` | 2026-09-01 00:00 | 誕生日券（スタンプ 0 個） |
-| 55 | 3 | `IS_EXPIRED` | `None` | 2026-07-28 12:05 | 期限切れ。スタンプは削除済み |
+| 51 | 1 | `IS_USED` | `Some(5120)` | 2026-11-02 | 使用済み |
+| 52 | 1 | `IS_AVAILABLE` | `None` | 2027-06-20 | 使える |
+| 53 | 1 | `IS_COLLECTING` | `None` | 2027-07-15 | **貯め中**（スタンプ 7 個） |
+| 54 | 2 | `IS_AVAILABLE` | `None` | 2026-09-01 | 誕生日券（スタンプ 0 個） |
+| 55 | 3 | `IS_EXPIRED` | `None` | 2026-07-28 | 期限切れ。スタンプは削除済み |
 
 **53 番と 54 番が対比になっています。** どちらも `IS_COLLECTING` を経由しますが、54 番は `requiredStampCount = 0` なので**作った瞬間に `IS_AVAILABLE`** になります。
 
@@ -342,7 +343,7 @@ WHERE user_coupon_id = ?
 
 ## 日次バッチ
 
-1. `expiresAt < 今` かつ `state` が `IS_COLLECTING` または `IS_AVAILABLE` の `UserCoupon` を、
+1. `expiresAt < 今日` かつ `state` が `IS_COLLECTING` または `IS_AVAILABLE` の `UserCoupon` を、
    `IS_EXPIRED` に更新する
 2. **`IS_EXPIRED` になった `UserCoupon` に紐づく `UserCouponStamp` を削除する**
 
@@ -535,7 +536,7 @@ sales_user_coupon_stamp   ← 今回追加
 
 **副産物：** `UserCouponStamp` から `userId` が消えました。親が持っているので不要です。初回の設計では「会員のスタンプを数えるのが最頻の操作だから直接持つ」という論点がありましたが、**数える単位が `userCouponId` に変わったので不要になりました。**
 
-**もう 1 つの副産物：** 有効期限が「1 個目のスタンプから 1 年」になり、要求文の「最後の注文から 1 年」に近づきました。実世界のスタンプカードと同じ動きです。
+**もう 1 つの副産物：** 有効期限を「1 個目のスタンプで会員クーポンを作成した日から 1 年」と、カード単位で持てます。
 
 ### 論点3：期限切れを区分値で持つか、都度計算するか
 

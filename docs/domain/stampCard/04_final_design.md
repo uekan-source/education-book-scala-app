@@ -1,6 +1,6 @@
 # スタンプカード（ポイント） — 詳細要件定義
 
-対象：クーポンの管理と、会員のスタンプ付与 ／ 前提：[要件定義](./p1_01_REQUIREMENTS.md)で合意済み
+対象：クーポンの管理と、会員のスタンプ付与 ／ 前提：[要件定義](./01_requirements.md)で合意済み
 
 ## 1. 概要
 
@@ -145,6 +145,7 @@ object Coupon:
 - `requiredStampCount > 0` のマスタは、同時に 1 つだけ配布中にする。スタンプを貯める先が自動で選ばれるため、複数あると決まらない。マスタの登録は本部が行うので運用で担保する（論点4）。
 - `validDays` は 1 以上。
 - 配布終了にしても、すでに配られた会員クーポンは期限まで使える。`MenuItem` の販売終了と同じ扱い。
+- クーポンの条件（対象商品・割引額・必要スタンプ数・有効日数）は登録後に変更しない。条件を変えるときは新しい `Coupon` を登録し、旧クーポンを配布終了にする。
 
 保存されるデータの例。
 
@@ -166,7 +167,7 @@ case class UserCoupon(
   usedOrderId: Option[Order.Id],       // 使用した注文。None ＝ 未使用
   usedAt:      Option[LocalDateTime],  // 使用日時。None ＝ 未使用
   state:       Status,                 // クーポンの状態
-  expiresAt:   LocalDate,          // 有効期限（作成日時 + マスタの validDays）
+  expiresAt:   LocalDate,              // 有効期限（作成日 + マスタの validDays）
   updatedAt:   LocalDateTime = Now,    // データ更新日
   createdAt:   LocalDateTime = Now     // データ作成日。配られた日時を兼ねる
 ) extends EntityModel[Id]
@@ -209,7 +210,7 @@ object UserCoupon:
 - 会員あたり、`IS_COLLECTING` の行は最大 1 枚。1 回の受け渡しで押されるスタンプは 1 個なので、貯める先が 2 つあると決まらない。
 - `usedOrderId` は一意。1 注文で使えるクーポンは 1 枚まで。
 - 使用時は `state` が `IS_AVAILABLE` かつ `expiresAt` を過ぎていないことを両方確認する。`state` はキャッシュであり、正は `expiresAt` である（論点3）。
-- `expiresAt` は配った時点で `createdAt + validDays` として計算し、以後変えない。
+- `expiresAt` は配った日の `LocalDate + validDays` として計算し、以後変えない。期限日は利用可能で、翌日から期限切れとする。
 
 保存されるデータの例（会員 ID 100、今が 2026-08-03）。
 
@@ -321,7 +322,7 @@ WHERE user_coupon_id = ?
 
 ## 8. 日次バッチ
 
-1. `expiresAt < 今` かつ `state` が `IS_COLLECTING` または `IS_AVAILABLE` の `UserCoupon` を `IS_EXPIRED` に更新する。
+1. `expiresAt < 今日` かつ `state` が `IS_COLLECTING` または `IS_AVAILABLE` の `UserCoupon` を `IS_EXPIRED` に更新する。
 2. `IS_EXPIRED` になった `UserCoupon` に紐づく `UserCouponStamp` を削除する。
 
 ステップ 2 により、貯めきれなかったスタンプが溜まり続けることを防ぐ。親子関係にしたことで、削除対象が `userCouponId` で引ける。
@@ -464,7 +465,7 @@ sales_user_coupon_stamp   ← 今回追加
 
 副産物として、`UserCouponStamp` から `userId` が消えた。親が持っているため不要である。初回の設計では「会員のスタンプを数えるのが最頻の操作だから直接持つ」という論点があったが、数える単位が `userCouponId` に変わったので不要になった。
 
-もう 1 つの副産物として、有効期限が「1 個目のスタンプから 1 年」になり、要求文の「最後の注文から 1 年」に近づいた。実世界のスタンプカードと同じ動きである。
+もう 1 つの副産物として、有効期限を「1 個目のスタンプで会員クーポンを作成した日から 1 年」と、カード単位で持てる。
 
 ## 論点3：期限切れを区分値で持つか、都度計算するか
 
