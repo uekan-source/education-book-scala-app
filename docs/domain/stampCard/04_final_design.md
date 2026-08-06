@@ -253,7 +253,7 @@ object UserCoupon:
 case class UserCouponStamp(
   id:           Option[Id],           // 管理 ID（永続化前は None）
   userCouponId: UserCoupon.Id,        // どの会員クーポンに属するか
-  userId:       User.Id,              // 親の UserCoupon.userId をコピーしたもの
+  userId:       User.Id,              // どの会員のスタンプか
   orderId:      Order.Id,             // どの注文で押されたか（一意）
   updatedAt:    LocalDateTime = Now,  // データ更新日
   createdAt:    LocalDateTime = Now   // データ作成日
