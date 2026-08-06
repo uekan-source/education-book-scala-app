@@ -23,7 +23,7 @@
 | クーポン | 本部が登録するクーポンの種類 | クーポンマスタ、クーポンの種類、テンプレート |
 | 会員クーポン | 会員が持っているクーポン 1 枚 | カード、スタンプカード、無料券、特典 |
 | 会員クーポンスタンプ | 受け渡し 1 回につき 1 個押されるスタンプ | ポイント、来店記録、判子 |
-| 配布中 / 配布終了 | そのクーポンを新しく配るかどうか | 有効 / 無効 |
+| 準備中 / 配布中 / 配布終了 | そのクーポンが今どの段階か | 有効 / 無効 |
 | 貯め中 | 会員クーポンのうち、必要スタンプ数に達していないもの | 未完成、途中 |
 | 使用可能 | 必要スタンプ数に達し、まだ使っていないもの | 有効、完成 |
 | 無効化 | 対象メニューの販売終了により、期限前に使えなくなった会員クーポン | 期限切れ |
@@ -66,6 +66,8 @@ erDiagram
         Int discount "割引額"
         Int requiredStampCount "必要スタンプ数"
         Int validDays "有効日数"
+        LocalDate distStartAt "配布期間の開始日"
+        LocalDate distEndAt "配布期間の終了日"
         Status state "配布の状態"
         LocalDateTime updatedAt "更新日時"
         LocalDateTime createdAt "作成日時"
@@ -84,6 +86,7 @@ erDiagram
     UserCouponStamp {
         Id id "スタンプID"
         Id userCouponId "会員クーポンID"
+        Id userId "会員ID"
         Id orderId "注文ID"
         LocalDateTime updatedAt "更新日時"
         LocalDateTime createdAt "作成日時"
@@ -93,7 +96,7 @@ erDiagram
 図で読み取ってほしいのは 4 点。
 
 - `UserCouponStamp` は `userCouponId` が必須。スタンプは必ずどこかの会員クーポンに属する（論点2）。
-- `UserCouponStamp` は `userId` を持たない。親の `UserCoupon` が持っているため不要。
+- `UserCouponStamp` は `userId` を持つ。親の `UserCoupon.userId` をコピーしたもので、障害調査のために持つ（論点14）。
 - `Coupon` は `sales` を参照しない。マスタ側は自分が何枚配られたかを知らない（論点8）。
 - `UserCoupon` に付与日時がない。`createdAt` が兼ねる（論点5）。
 
@@ -108,7 +111,9 @@ case class Coupon(
   name:               String,               // 「バーガー無料券」
   discount:           Option[Int],          // 割引額（円）。None ＝ 対象商品が無料
   requiredStampCount: Int,                  // 必要なスタンプ数。0 なら即配布できる
-  validDays:          Int,                  // 有効日数（配ってから何日有効か）
+  validDays:          Option[Int],          // 有効日数（配ってから何日有効か）。None ＝ 無期限
+  distStartAt:        LocalDate,            // 配布期間の開始日
+  distEndAt:          LocalDate,            // 配布期間の終了日
   state:              Status,               // 配布の状態
   updatedAt:          LocalDateTime = Now,  // データ更新日
   createdAt:          LocalDateTime = Now   // データ作成日
@@ -121,8 +126,9 @@ object Coupon:
 
   /** 配布の状態 */
   enum Status(val code: Int) extends EnumStatus[Int]:
-    case IS_ACTIVE   extends Status(code =  1) // 配布中
-    case IS_INACTIVE extends Status(code = -1) // 配布終了
+    case IS_PREPARING  extends Status(code =  0) // 準備中
+    case IS_ACTIVE     extends Status(code =  1) // 配布中
+    case IS_INACTIVE   extends Status(code = -1) // 配布終了
 ```
 
 `menuItemId` は必須である。対象商品のないクーポンは作れないため、「注文全体から◯◯円引く」という金券型が構造的に排除される。
@@ -134,29 +140,37 @@ object Coupon:
 | None | その商品が無料 |
 | `Some(200)` | その商品が 200 円引き |
 
-`validDays` は日数であり日時ではない。マスタは何枚もの会員クーポンのテンプレートなので、絶対的な期限を持てない（論点6）。
+`validDays` は日数であり日時ではない。マスタは何枚もの会員クーポンのテンプレートなので、絶対的な期限を持てない（論点6）。`None` は無期限を表す（論点15）。
 
 `requiredStampCount` は可変にしている。10 固定ではないため「5 個で 1 枚」のキャンペーンもマスタの登録だけで実現できる。
+
+`distStartAt` / `distEndAt` は、いつ配るクーポンかを表す。`validDays` が会員クーポン1枚の有効期間（相対）であるのに対し、この2つはマスタ自体が配られる期間（絶対）であり、別の軸である（論点13）。`state` はこの期間から日次バッチが導く値であり、キャッシュである（論点3 の `expiresAt` と `state` の関係と同じ構図）。
 
 型では守れない決めごと。
 
 - `discount` は正の値。0 や負は無効。
 - `discount` が対象商品の価格を超えてもよい。超過分は切り捨てて実質無料になる。
 - `requiredStampCount` は 0 以上。0 ならスタンプなしで配れる。
-- `requiredStampCount > 0` のマスタは、同時に 1 つだけ配布中にする。スタンプを貯める先が自動で選ばれるため、複数あると決まらない。マスタの登録は本部が行うので運用で担保する（論点4）。
-- `validDays` は 1 以上。
+- `requiredStampCount > 0` のマスタは、配布期間が重複しないように登録する。同時に `IS_ACTIVE` になるマスタが複数あると、スタンプを貯める先が自動で選べない。マスタの登録は本部が行うので運用で担保する（論点4・論点13）。
+- `validDays` は `Some` の場合 1 以上。`None` は無期限（論点15）。
+- `distEndAt` は `distStartAt` 以降。
+- `state` は `IS_PREPARING → IS_ACTIVE → IS_INACTIVE` の一方向にのみ遷移する。日次バッチが配布期間と比べて自動で進める（論点13）。手動で戻すことはしない。
 - 通常の配布終了にしても、すでに配られた会員クーポンは期限まで使える。対象 `MenuItem` の販売終了時は、会員クーポンを無効化する。
-- クーポンの条件（対象商品・割引額・必要スタンプ数・有効日数）は登録後に変更しない。条件を変えるときは新しい `Coupon` を登録し、旧クーポンを配布終了にする。
+- クーポンの条件（対象商品・割引額・必要スタンプ数・有効日数・`distStartAt`）は登録後に変更しない。条件を変えるときは新しい `Coupon` を登録し、旧クーポンを配布終了にする。
+- `distEndAt` だけは例外で、`state` が `IS_PREPARING` または `IS_ACTIVE` の間は変更できる（延長・前倒しのどちらも可）。`IS_INACTIVE` になった後の変更はできない。日次バッチは `IS_INACTIVE` から戻さないため、変更しても反映されない（論点13）。
 
 保存されるデータの例。
 
-| id | menuItemId | name | discount | requiredStampCount | validDays | state |
-|---|---|---|---|---|---|---|
-| 1 | 101（バーガー） | バーガー無料券 | None | 10 | 365 | 配布中 |
-| 2 | 205（ドリンク） | 誕生日ドリンク券 | None | 0 | 30 | 配布中 |
-| 3 | 101（バーガー） | バーガー200円引き券 | `Some(200)` | 5 | 90 | 配布終了 |
+| id | menuItemId | name | discount | requiredStampCount | validDays | distStartAt | distEndAt | state |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 101（バーガー） | バーガー無料券 | None | 10 | `Some(365)` | 2026-01-01 | 2026-06-30 | 配布終了 |
+| 2 | 205（ドリンク） | 誕生日ドリンク券 | None | 0 | None | 2026-01-01 | 2027-12-31 | 配布中 |
+| 3 | 101（バーガー） | バーガー200円引き券 | `Some(200)` | 5 | `Some(90)` | 2026-07-01 | 2026-12-31 | 配布中 |
+| 4 | 101（バーガー） | 秋のバーガー無料券 | None | 10 | `Some(365)` | 2027-09-01 | 2028-02-28 | 準備中 |
 
-3 行とも同じモデル・同じ形。「無料券」「割引券」「誕生日券」という業務の言葉が 3 つあるが、区分値は「配布中 / 配布終了」の 2 値だけ。
+2 番の `validDays` が `None` なのは、誕生日クーポンを無期限で運用する想定のためである（論点15）。同じ「誕生日ドリンク券」でも `requiredStampCount = 0` と `validDays = None` は別の軸で、たまたま両方が「特別扱い」を受けているだけである。
+
+4 行とも同じモデル・同じ形。「無料券」「割引券」「誕生日券」という業務の言葉が複数あるが、区分値は「準備中 / 配布中 / 配布終了」の 3 値だけ。1 番と 4 番は同じ商品・同じ条件だが、配布期間が重ならないように登録されている。
 
 ### 4.2 会員クーポン（`sales`）
 
@@ -168,7 +182,7 @@ case class UserCoupon(
   usedOrderId: Option[Order.Id],       // 使用した注文。None ＝ 未使用
   usedAt:      Option[LocalDateTime],  // 使用日時。None ＝ 未使用
   state:       Status,                 // クーポンの状態
-  expiresAt:   LocalDate,              // 有効期限（作成日 + マスタの validDays）
+  expiresAt:   Option[LocalDate],      // 有効期限（作成日 + マスタの validDays）。None ＝ 無期限
   updatedAt:   LocalDateTime = Now,    // データ更新日
   createdAt:   LocalDateTime = Now     // データ作成日。配られた日時を兼ねる
 ) extends EntityModel[Id]
@@ -191,7 +205,7 @@ object UserCoupon:
 
 付与日時のフィールドを持たない。行が作られる瞬間が配られた瞬間なので、`createdAt` が兼ねる（論点5）。
 
-`expiresAt` は保存する。マスタの `validDays` を後から変えても、既に配ったクーポンの期限は変わらない。
+`expiresAt` は保存する。マスタの `validDays` を後から変えても、既に配ったクーポンの期限は変わらない。マスタの `validDays` が `None` なら、配られる会員クーポンの `expiresAt` も `None`（無期限）になる（論点15）。
 
 `code` の符号が意味を持つ。正はまだ使える可能性がある、負は終わったことを表し、`code > 0` で「生きているクーポンか」を判定できる。正の値は 100 刻みにしているため、間に状態が増えても `150` で挿入できる。ただし `IS_USED` だけは例外で、注文がキャンセルされると `IS_AVAILABLE` に戻る（対象メニューが販売終了なら `IS_INVALIDATED`。論点12）。
 
@@ -211,21 +225,23 @@ object UserCoupon:
 - `state` が `IS_USED` のとき、`usedOrderId` と `usedAt` は必ず埋まっている（逆も同様）。
 - 会員あたり、`IS_COLLECTING` の行は最大 1 枚。1 回の受け渡しで押されるスタンプは 1 個なので、貯める先が 2 つあると決まらない。この条件は運用では守れないため、DB の一意制約で担保する。MySQL は部分ユニークインデックスを持たないので、`state` が `IS_COLLECTING` のときだけ `user_id` を返す生成列を作り、そこに一意制約を張る。第6章のステップ 1〜5 は 1 トランザクションで行い、重複キーで落ちた側はステップ 1 からやり直す。ステップ 5 を外すと、必要スタンプ数に達しているのに `IS_COLLECTING` のまま残る行が生まれ、次の受け渡しでその行が貯め先として拾われてしまう。
 - `usedOrderId` は一意。1 注文で使えるクーポンは 1 枚まで。
-- 使用時は `state` が `IS_AVAILABLE` かつ `expiresAt` を過ぎていないことを両方確認する。`state` はキャッシュであり、正は `expiresAt` である（論点3）。
-- `expiresAt` は配った日の `LocalDate + validDays` として計算し、以後変えない。期限日は利用可能で、翌日から期限切れとする。
+- 使用時は `state` が `IS_AVAILABLE` かつ `expiresAt` が今日より前でないことを両方確認する。`state` はキャッシュであり、正は `expiresAt` である（論点3）。`expiresAt` が `None`（無期限）のときは、この期限確認を行わない（論点15）。
+- `expiresAt` は配った日の `LocalDate + validDays` として計算し、以後変えない。期限日は利用可能で、翌日から期限切れとする。マスタの `validDays` が `None` なら `expiresAt` も `None` にする。
 - 対象メニューの販売終了時は、`IS_COLLECTING` と `IS_AVAILABLE` を `IS_INVALIDATED` に更新する。通常の配布終了では更新しない。
 - 使用を確定するのは注文確定時である。その注文がキャンセルされたら `IS_AVAILABLE` に戻し、`usedOrderId` と `usedAt` を None に戻す（論点12）。ただし対象メニューが販売終了になっていれば `IS_INVALIDATED` に落とし、紐づくスタンプも削除する（7.1）。未受け取りで終わった場合は戻さない。
 - 使用確定は対象行をロックし、`state` が `IS_AVAILABLE` であることを確認してから更新する。二重使用を防いでいるのはこの確認だけであり、`usedOrderId` の一意制約では防げない（論点12）。
 
-保存されるデータの例（会員 ID 100、今が 2026-08-03）。
+保存されるデータの例（会員 ID 100、今が 2026-10-15）。
 
 | id | couponId | state | usedOrderId | expiresAt | 業務での状態 |
 |---|---|---|---|---|---|
-| 51 | 1 | `IS_USED` | `Some(5120)` | 2026-11-02 | 使用済み |
-| 52 | 1 | `IS_AVAILABLE` | None | 2027-06-20 | 使える |
-| 53 | 1 | `IS_COLLECTING` | None | 2027-07-15 | 貯め中（スタンプ 7 個） |
-| 54 | 2 | `IS_AVAILABLE` | None | 2026-09-01 | 誕生日券（スタンプ 0 個） |
-| 55 | 3 | `IS_EXPIRED` | None | 2026-07-28 | 期限切れ。スタンプは削除済み |
+| 51 | 1 | `IS_USED` | `Some(5120)` | `Some(2027-01-15)` | 使用済み |
+| 52 | 1 | `IS_AVAILABLE` | None | `Some(2027-05-01)` | 使える |
+| 53 | 1 | `IS_COLLECTING` | None | `Some(2027-06-25)` | 貯め中（スタンプ 7 個） |
+| 54 | 2 | `IS_AVAILABLE` | None | None | 誕生日券（無期限。スタンプ 0 個） |
+| 55 | 3 | `IS_EXPIRED` | None | `Some(2026-10-03)` | 期限切れ。スタンプは削除済み |
+
+54 番の `expiresAt` が `None` なのは、マスタ（クーポン 2 番）の `validDays` が `None` だからである。この行は日次バッチの対象にならず、`IS_EXPIRED` に落ちることがない。
 
 53 番と 54 番が対比になっている。54 番は `requiredStampCount = 0` なので、作った瞬間に `IS_AVAILABLE` になる。
 
@@ -237,6 +253,7 @@ object UserCoupon:
 case class UserCouponStamp(
   id:           Option[Id],           // 管理 ID（永続化前は None）
   userCouponId: UserCoupon.Id,        // どの会員クーポンに属するか
+  userId:       User.Id,              // 親の UserCoupon.userId をコピーしたもの
   orderId:      Order.Id,             // どの注文で押されたか（一意）
   updatedAt:    LocalDateTime = Now,  // データ更新日
   createdAt:    LocalDateTime = Now   // データ作成日
@@ -250,13 +267,14 @@ object UserCouponStamp:
 
 `userCouponId` は必須である（`Option` ではない）。スタンプは必ずどこかの会員クーポンに属するため、親子関係が構造として成立し、親が期限切れになればスタンプごと削除できる（論点2）。
 
-`userId` を持たない。親の `UserCoupon` が持っているため不要である。スタンプ数を数えるときは `userCouponId` で絞る。
+`userId` を持つ。数える単位は `userCouponId` のままで変わらないが、障害調査など会員を起点に横断的に引きたい場面のために持つ（論点14）。親の `UserCoupon.userId` を作成時にコピーしたものであり、以後変更しない。
 
 有効期限も付与日時も持たない。スタンプ単体は失効せず、期限は親が持つ。取り消しの記録も持たない。受け渡し完了が付与のトリガーなので、押された後にキャンセルされることがない（論点7）。
 
 型では守れない決めごと。
 
 - `orderId` は一意。1 回の受け渡しにつきスタンプは 1 個。
+- `userId` は親の `UserCoupon.userId` と常に一致する。`UserCoupon` の `userId` は作成後に変わらないため、コピーしたスタンプ側もズレない（論点14）。
 - 親の `UserCoupon` が `IS_EXPIRED` または `IS_INVALIDATED` になったら、紐づくスタンプは削除する。日次バッチ（8章）、販売終了時の処理（8.1）、キャンセルで `IS_INVALIDATED` に落ちたとき（7.1）、受け渡し完了時に期限切れを検出したとき（第6章のステップ 2）の 4 経路があり、いずれも削除する側で行う。
 - `UserCoupon` が `IS_COLLECTING` 以外のとき、スタンプを追加しない。
 
@@ -266,7 +284,7 @@ object UserCouponStamp:
 
 | エンティティ | 区分値 | 値の数 |
 |---|---|---|
-| `Coupon` | `Status`（配布の状態） | 2 |
+| `Coupon` | `Status`（配布の状態） | 3 |
 | `UserCoupon` | `Status`（クーポンの状態） | 5 |
 | `UserCouponStamp` | なし | — |
 
@@ -274,7 +292,8 @@ object UserCouponStamp:
 
 | 業務の言葉 | どう表すか | 保存するか |
 |---|---|---|
-| 配布中 / 配布終了 | `Coupon.state` | する |
+| 準備中 | `Coupon.state` が `IS_PREPARING` | する（ただしキャッシュ。論点13） |
+| 配布中 / 配布終了 | `Coupon.state` | する（ただしキャッシュ。論点13） |
 | 貯め中 | `UserCoupon.state` が `IS_COLLECTING` | する |
 | 使用可能 | `UserCoupon.state` が `IS_AVAILABLE` | する |
 | 使用済み | `UserCoupon.state` が `IS_USED` | する |
@@ -300,8 +319,8 @@ WHERE user_coupon_id = ?
 ## 6. 受け渡し完了時の処理順序
 
 1. その会員の `IS_COLLECTING` な `UserCoupon` を探す。
-2. 見つかった会員クーポンの `expiresAt` が今日より前なら、その場で `IS_EXPIRED` に更新し、紐づく `UserCouponStamp` を削除する。見つからなかったものとして次に進む。
-3. 貯め先が無ければ作る。配布中で `requiredStampCount > 0` のマスタを 1 件取り、`UserCoupon` を `IS_COLLECTING` で追加する（`expiresAt` ＝ 今日 + `validDays`）。
+2. 見つかった会員クーポンの `expiresAt` が `Some` かつ今日より前なら、その場で `IS_EXPIRED` に更新し、紐づく `UserCouponStamp` を削除する。見つからなかったものとして次に進む。`expiresAt` が `None`（無期限）なら、この判定は行わない。
+3. 貯め先が無ければ作る。`state` が `IS_ACTIVE` かつ配布期間内（`distStartAt <= 今日 <= distEndAt`）かつ `requiredStampCount > 0` のマスタを 1 件取り、`UserCoupon` を `IS_COLLECTING` で追加する。マスタの `validDays` が `Some(n)` なら `expiresAt` ＝ 今日 + `n` 日、`None` なら `expiresAt` ＝ `None`。
 4. `UserCouponStamp` を 1 件追加する。
 5. スタンプ数が `requiredStampCount` に達したら、`state` を `IS_AVAILABLE` に更新する。
 
@@ -335,7 +354,7 @@ WHERE user_coupon_id = ?
 
 | 時点 | クーポンについて何をするか |
 |---|---|
-| 注文確定 | `state` が `IS_AVAILABLE` かつ `expiresAt` が今日より前でないことを確認し、`IS_USED` に更新する |
+| 注文確定 | `state` が `IS_AVAILABLE` であることを確認し、`expiresAt` が `Some` の場合は今日より前でないことも確認して、`IS_USED` に更新する |
 | 支払い | 何もしない |
 | 受け渡し完了 | 何もしない（スタンプの付与は行う） |
 | 注文キャンセル | `IS_USED` を `IS_AVAILABLE` に戻し、`usedOrderId` と `usedAt` を None に戻す。ただし対象メニューが販売終了になっていれば `IS_INVALIDATED` に落とす |
@@ -355,6 +374,8 @@ WHERE user_coupon_id = ?
 
 ステップ 2 により、貯めきれなかったスタンプが溜まり続けることを防ぐ。親子関係にしたことで、削除対象が `userCouponId` で引ける。
 
+ステップ 1 の条件はそのままで無期限のクーポン（`expiresAt` が `None`）を除外できる。SQL では `NULL` との比較は常に真にならないため、`expiresAt < 今日` は `expiresAt` が `NULL` の行に対して自動的に false になる。特別な分岐を書く必要はない。
+
 ## 8.1 対象メニューを販売終了にするとき
 
 1. 販売終了にするメニューを対象とする `Coupon` の `requiredStampCount` が 1 以上なら、後継のクーポンを先に登録して配布中にする。
@@ -365,6 +386,13 @@ WHERE user_coupon_id = ?
 ステップ 1〜2 は 1 トランザクションで行う。順序が重要で、後継を用意せずにステップ 2 を行うと、貯める先が 1 つも配布中でない状態が生まれ、次の受け渡しでスタンプを貯める先が決まらない。逆にこの 2 つを別々に行うと、配布中のクーポンが 2 件並ぶ時間が生まれ、第6章のステップ 3 で貯める先が一意に決まらなくなる（論点4）。1 トランザクションにまとめれば、どちらの状態も外から観測されない。
 
 一時的な品切れではこの処理を行わない。対象メニューの販売終了だけが無効化のトリガーである。
+
+## 8.2 配布期間による `Coupon` の状態遷移（日次バッチ）
+
+1. `state` が `IS_PREPARING` かつ `distStartAt <= 今日` の `Coupon` を `IS_ACTIVE` に更新する。
+2. `state` が `IS_ACTIVE` かつ `distEndAt < 今日` の `Coupon` を `IS_INACTIVE` に更新する。
+
+`state` は配布期間から導ける値であり、キャッシュである（論点13）。正は `distStartAt` / `distEndAt` であるため、第6章のステップ 3 でマスタを選ぶときは `state = IS_ACTIVE` に加えて配布期間も確認する。`state` だけを信じると、バッチが走る前や落ちた日に、まだ準備中のマスタや既に終了したマスタが選ばれてしまう（論点3 の `expiresAt` と同じ理由）。
 
 ## 9. エンティティ一覧
 
@@ -548,7 +576,7 @@ sales_user_coupon_stamp   ← 今回追加
 
 ## 論点6：マスタが持つのは有効日数か、有効期限か
 
-判断：有効日数（`validDays: Int`）。マスタは日時を持たない。
+判断：有効日数（`validDays: Option[Int]`）。マスタは日時を持たない。`None` を無期限として許すかどうかは別の論点として扱う（論点15）。
 
 マスタ 1 件から会員クーポンが何枚も配られる。配られるタイミングが会員ごとに違うため、期限も 1 枚ごとに違う。マスタに「2027-04-01 まで」と書くと、8 月に配られた会員も 4 月で切れることになる。
 
@@ -641,3 +669,55 @@ sales_user_coupon_stamp   ← 今回追加
 代償：`IS_USED` から `IS_AVAILABLE` へ戻る遷移が生まれ、「負 ＝ 終わった」という `code` の読み方に例外ができる。集計では、キャンセルで戻った分が使用枚数に計上されない点に注意する。
 
 判断が変わる条件：注文確定後のキャンセルを認めない運用になれば、戻す遷移が不要になり、A と B の差は無くなる。
+
+## 論点13：配布期間をマスタの属性として持つか
+
+判断：`distStartAt` / `distEndAt` を持つ。`state` に `IS_PREPARING` を追加し、日次バッチが配布期間から自動で遷移させる。
+
+初回の設計では、配布の開始・終了は `state` を本部が手で切り替えるだけで表していた（`IS_ACTIVE` / `IS_INACTIVE`）。いつから配るかを先に決めて登録し、その日が来るまで見えない状態にしておきたい、という要望に対して、この 2 値では応えられない。
+
+配布期間を持たせると、もう一つの要望にも応えられる。**将来のキャンペーンを先行登録できる。** 「秋のバーガー無料券」を今のうちに作っておき、開始日が来たら自動で配布中に切り替わる。本部が開始日当日に手で切り替える必要がない。
+
+先行登録した状態を表すために `IS_PREPARING`（`code = 0`）を追加した。`IS_ACTIVE` にする前の段階であり、まだ会員から見えない。この状態は `requiredStampCount > 0` の「同時に配布中は1つ」という制約（論点4）の対象外である。準備中のマスタは複数あってもよい。将来のキャンペーンを何本でも並べて先行登録できる。
+
+`state` はこの配布期間から導ける値であり、`UserCoupon.expiresAt` と `state` の関係（論点3）と同じ構図のキャッシュである。日次バッチが期間と比べて機械的に進めるため、手で戻すことはしない。`IS_PREPARING → IS_ACTIVE → IS_INACTIVE` の一方向のみで、`distStartAt` を含む他の条件は登録後に直せないため、直したい場合は新しい `Coupon` を登録する（4.1 の「クーポンの条件は登録後に変更しない」と同じ扱い）。
+
+論点3で学んだ通り、キャッシュには「バッチが走る前」の窓が空く。第6章のステップ 3（貯め先マスタの選択）は `state = IS_ACTIVE` だけでなく配布期間も確認するようにした。`state` だけを信じると、開始日当日でバッチ未実行のマスタが選ばれずに済んだはずの受け渡しでスタンプが行き場を失う、あるいは終了日を過ぎたのにバッチが落ちてまだ `IS_ACTIVE` のマスタが選ばれ続ける、という事故が起きる。
+
+`distEndAt` だけは登録後も変更できる。他の条件と違って、終了日は「もう少し続けたい」「早めに切りたい」という判断が実際の配布期間中に入りやすい。新しい `Coupon` を登録し直す方式だと、旧マスタを配布終了にしてから新マスタを配布中にする間に窓が空き、8.1 で対処したのと同じ「貯め先が一意に決まらない」問題を毎回起こす。既存行の日付を書き換えるだけにすれば、この窓は生まれない。
+
+変更が効くのは `state` が `IS_INACTIVE` になる前だけである。日次バッチは `IS_INACTIVE` を `IS_ACTIVE` に戻さないため、既に終了したマスタの `distEndAt` を書き換えても復活しない。延長したい場合は、バッチが実行される前に変更する必要がある。
+
+代償：`requiredStampCount > 0` のマスタは、配布期間が重ならないように登録する運用ルールが増える（論点4 の「同時に配布中は1つ」と同じ性質の制約）。バッチが1本増える。`distEndAt` を延長すると、後から登録された別マスタの配布期間と重なる可能性があるため、延長時は他マスタの `distStartAt` との重複を本部が確認する必要がある。
+
+判断が変わる条件：無期限に配り続けるマスタ（終了日を決めない運用）が必要になったら、`distEndAt` を `Option` にする。そのときは `None` の場合の日次バッチの扱いを別途決める必要がある。
+
+## 論点14：`UserCouponStamp` に `userId` を持たせるか
+
+判断：持つ。親の `UserCoupon.userId` をコピーする。
+
+論点2 は「数える単位が `userCouponId` に変わったので `userId` は不要」と結論づけた。平常運用のクエリはすべて `userCouponId` で絞れるので、この結論自体は変わらない。
+
+しかし障害調査は平常運用ではない。「この会員に何が起きていたか」を会員IDを起点に横断的に洗い出したい場面では、`UserCoupon` を経由した JOIN が必須になり、調査の初動を遅らせる。**正規化の理屈（導出できるものは持たない）と、運用上の引きやすさは、別の軸で判断する。**
+
+`userId` は `UserCoupon.userId` から作成時にコピーするだけの値であり、以後どちらの `userId` も変わらないため、コピー後にズレることはない。「比べれば分かるものは保存しない」という原則には反するが、比較して分かることと、障害時に1クエリで引けることは、コストの種類が違う。
+
+代償：列が1つ増える。将来 `UserCoupon.userId` が変わる設計（譲渡機能など、付録Aで対象外にしている）を入れる場合は、この非正規化を保つかどうかを再検討する。
+
+## 論点15：無期限のクーポンを許すか
+
+判断：`Coupon.validDays` と `UserCoupon.expiresAt` を `Option` にする。`None` は無期限を表す。
+
+論点13 の `distStartAt` / `distEndAt`（マスタがいつ配られるか）とは別の軸である。こちらは、配られた**個々の会員クーポンがいつまで使えるか**の話であり、誕生日クーポンのように、会員に配った後は期限を切らずに持たせ続ける運用を想定している。
+
+初回の設計では `validDays: Int` を必須にしていた。当時は「起きない組み合わせは型で排除する」という方針を優先し、無期限クーポンという具体的な計画がない段階で `Option` にするのは、起きないケースのための予防的な変更であり、この方針に反すると判断していた。今回、無期限運用を実際に検討している旨の確認が取れたため、判断を変える。
+
+`Option` にする以上、影響は `validDays` 単体では終わらない。`expiresAt = createdAt + validDays` という計算式がある限り、`validDays` が `None` なら `expiresAt` も `None` にする必要があり、`UserCoupon.expiresAt` も連動して `Option` にした。
+
+`validDays = 0` で無期限を表す案は採らなかった。`expiresAt = createdAt.plusDays(0)` は「配られた当日に期限切れ」を意味し、無期限の対極になる。0 という値そのものに算術的な意味があるところへ、別の意味（無期限）を上書きすると、`requiredStampCount = 0`（0 個で配布可能、という自然な意味）と違って、読み手には型からも値からも判別できない。将来「0日はバグだろう」と誰かに直された瞬間、無期限のつもりのクーポンに期限が生まれる。
+
+`None` への対応は、期限を確認する箇所すべてに要る。使用時の期限確認（4.2）、第6章ステップ 2（付与時の期限チェック）、7.1（注文確定時の期限確認）で、`expiresAt` が `None` なら期限確認をスキップするよう分岐を足した。8章の日次バッチ（`expiresAt < 今日`）は分岐が要らない。SQL の `NULL` 比較は常に真にならないため、`expiresAt` が `NULL` の行は元から対象外になる。
+
+代償：期限を確認する箇所が増えるたびに、`Some` / `None` の分岐を書く必要がある。分岐を1箇所でも書き忘れると、無期限のつもりのクーポンが誤って期限切れ扱いされる、あるいはその逆が起きる。
+
+判断が変わる条件：無期限クーポンの運用が実際に始まったら、本部の管理画面で「このクーポンは無期限」と分かる表示が必要になる。`validDays` が空欄であることが、入力漏れなのか意図的な無期限なのかを画面上で区別できるようにする。
