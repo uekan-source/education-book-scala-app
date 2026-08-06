@@ -194,11 +194,11 @@ object UserCoupon:
 
   /** クーポンの状態 */
   enum Status(val code: Int) extends EnumStatus[Int]:
-    case IS_COLLECTING extends Status(code = 100) // 貯め中
-    case IS_AVAILABLE  extends Status(code = 200) // 使用可能
-    case IS_USED       extends Status(code =  -1) // 使用済み
-    case IS_EXPIRED    extends Status(code =  -2) // 期限切れ
-    case IS_INVALIDATED extends Status(code = -3) // 対象メニュー販売終了で無効化
+    case IS_COLLECTING   extends Status(code = 100) // 貯め中
+    case IS_AVAILABLE    extends Status(code = 200) // 使用可能
+    case IS_USED         extends Status(code =  -1) // 使用済み
+    case IS_EXPIRED      extends Status(code =  -2) // 期限切れ
+    case IS_INVALIDATED  extends Status(code =  -3) // 対象メニュー販売終了で無効化
 ```
 
 `couponId` は必須である。どのマスタから配られたかが必ず分かるため、クーポン別の使用状況が集計できる。
