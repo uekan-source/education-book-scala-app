@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 810" width="820" height="810" font-family="Hiragino Kaku Gothic ProN, Yu Gothic, Meiryo, sans-serif">
+  <style>
+    .proc  { fill: #f7f8fa; stroke: #46536b; stroke-width: 1.6; }
+    .cond  { fill: #fdfaf3; stroke: #a07a2c; stroke-width: 1.6; }
+    .ng    { fill: #fbf0ef; stroke: #b03a2e; stroke-width: 1.6; }
+    .t     { font-size: 13px; fill: #1a202c; }
+    .tb    { font-size: 13px; font-weight: bold; fill: #1a202c; }
+    .tw    { font-size: 13px; fill: #ffffff; }
+    .tng   { font-size: 13px; fill: #b03a2e; }
+    .edge  { stroke: #46536b; stroke-width: 1.5; fill: none; }
+    .edgeR { stroke: #b03a2e; stroke-width: 1.5; fill: none; }
+    .lbl   { font-size: 12px; fill: #5a6478; }
+  </style>
+
+  <rect x="0" y="0" width="820" height="810" fill="#ffffff"/>
+  <defs>
+    <marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,1 L9,5 L0,9 z" fill="#46536b"/>
+    </marker>
+    <marker id="fr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,1 L9,5 L0,9 z" fill="#b03a2e"/>
+    </marker>
+  </defs>
+
+  <!-- 開始 -->
+  <rect fill="#46536b" x="270" y="20" width="160" height="36" rx="18"/>
+  <text class="tw" x="350" y="43" text-anchor="middle">受け渡し完了</text>
+  <path class="edge" d="M350,56 L350,86" marker-end="url(#fa)"/>
+
+  <!-- Q1 -->
+  <path class="cond" d="M350,90 L520,133 L350,176 L180,133 z"/>
+  <text class="tb" x="350" y="129" text-anchor="middle">1. 貯め中の会員クーポン</text>
+  <text class="t"  x="350" y="147" text-anchor="middle">があるか</text>
+
+  <path class="edge" d="M350,176 L350,214" marker-end="url(#fa)"/>
+  <text class="lbl" x="358" y="199">ある</text>
+
+  <!-- Q2 -->
+  <path class="cond" d="M350,218 L520,261 L350,304 L180,261 z"/>
+  <text class="tb" x="350" y="257" text-anchor="middle">期限が切れているか</text>
+  <text class="t"  x="350" y="275" text-anchor="middle">（無期限なら判定しない）</text>
+
+  <!-- 切れている → 失効 -->
+  <path class="edge" d="M180,261 L90,261 L90,340" marker-end="url(#fa)"/>
+  <text class="lbl" x="96" y="253">切れている</text>
+
+  <rect class="proc" x="10" y="344" width="160" height="60" rx="6"/>
+  <text class="tb" x="90" y="368" text-anchor="middle">2. IS_EXPIRED に</text>
+  <text class="t"  x="90" y="388" text-anchor="middle">してスタンプを削除</text>
+
+  <path class="edge" d="M90,404 L90,470 L172,470" marker-end="url(#fa)"/>
+
+  <!-- Q1 ない → Q3 -->
+  <path class="edge" d="M520,133 L620,133 L620,470 L528,470" marker-end="url(#fa)"/>
+  <text class="lbl" x="528" y="124">ない</text>
+
+  <!-- Q3 -->
+  <path class="cond" d="M350,427 L524,470 L350,513 L176,470 z"/>
+  <text class="tb" x="350" y="466" text-anchor="middle">貯め先にできる</text>
+  <text class="t"  x="350" y="484" text-anchor="middle">マスタがあるか</text>
+
+  <!-- Q3 ない → NG -->
+  <path class="edgeR" d="M176,470 L118,470 L118,596" marker-end="url(#fr)"/>
+  <text class="lbl" x="124" y="530" fill="#b03a2e">ない</text>
+
+  <rect class="ng" x="28" y="600" width="180" height="60" rx="6"/>
+  <text class="tng" x="118" y="624" text-anchor="middle">スタンプを押さずに</text>
+  <text class="tng" x="118" y="644" text-anchor="middle">終了（8.2.1）</text>
+
+  <!-- Q3 ある → 3 -->
+  <path class="edge" d="M350,513 L350,541" marker-end="url(#fa)"/>
+  <text class="lbl" x="358" y="533">ある</text>
+
+  <rect class="proc" x="260" y="545" width="180" height="46" rx="6"/>
+  <text class="tb" x="350" y="573" text-anchor="middle">3. 貯め先を作る</text>
+
+  <path class="edge" d="M350,591 L350,621" marker-end="url(#fa)"/>
+
+  <!-- 4 -->
+  <rect class="proc" x="260" y="625" width="180" height="46" rx="6"/>
+  <text class="tb" x="350" y="653" text-anchor="middle">4. スタンプを 1 件追加</text>
+
+  <!-- Q2 生きている → 4 に合流 -->
+  <path class="edge" d="M520,261 L700,261 L700,648 L444,648" marker-end="url(#fa)"/>
+  <text class="lbl" x="528" y="253">生きている / 無期限</text>
+
+  <path class="edge" d="M350,671 L350,701" marker-end="url(#fa)"/>
+
+  <!-- 5 -->
+  <rect class="proc" x="215" y="705" width="270" height="56" rx="6"/>
+  <text class="tb" x="350" y="729" text-anchor="middle">5. 必要数に達していれば</text>
+  <text class="t"  x="350" y="748" text-anchor="middle">IS_AVAILABLE に更新する</text>
+
+  <!-- 注記 -->
+  <text class="lbl" x="520" y="729">ステップ 1〜5 は 1 トランザクション</text>
+  <text class="lbl" x="520" y="747">で行う（4.2）</text>
+  <text class="lbl" x="520" y="775" fill="#b03a2e">赤の経路だけスタンプが押されない</text>
+</svg>

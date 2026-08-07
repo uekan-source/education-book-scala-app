@@ -133,17 +133,7 @@ object Coupon:
 
 状態は一方向にのみ進む。通常は日次バッチ（8.2）が配布期間と比べて進め、バッチを待たず即座に反映させたいときだけ手で書き換える（8.1・8.2.1）。
 
-```mermaid
-stateDiagram-v2
-    [*] --> IS_PREPARING : 登録する
-    IS_PREPARING --> IS_ACTIVE : 開始日が来た（8.2）
-    IS_PREPARING --> IS_ACTIVE : 即日で配布を始める（8.1・8.2.1）
-    IS_ACTIVE --> IS_INACTIVE : 終了日を過ぎた（8.2）
-    IS_ACTIVE --> IS_INACTIVE : 即日で配布を終える（8.1・8.2.1）
-    IS_PREPARING --> IS_INACTIVE : 対象メニューの販売終了（8.1）
-    IS_ACTIVE --> IS_INACTIVE : 対象メニューの販売終了（8.1）
-    IS_INACTIVE --> [*]
-```
+![Coupon の状態遷移](./images/coupon_state.svg)
 
 `menuItemId` は必須である。対象商品のないクーポンは作れないため、「注文全体から◯◯円引く」という金券型が構造的に排除される。
 
@@ -248,25 +238,7 @@ object UserCoupon:
     case IS_INVALIDATED  extends Status(code =  -3) // 対象メニュー販売終了で無効化
 ```
 
-```mermaid
-stateDiagram-v2
-    [*] --> IS_COLLECTING : 1 個目のスタンプ（第6章）
-    [*] --> IS_AVAILABLE : 必要スタンプ数 0 のクーポンを配る
-
-    IS_COLLECTING --> IS_AVAILABLE : 必要数に達した（第6章）
-    IS_AVAILABLE --> IS_USED : 注文確定（7.1）
-    IS_USED --> IS_AVAILABLE : 注文キャンセル（7.1）
-
-    IS_COLLECTING --> IS_EXPIRED : 期限切れ（8章・第6章）
-    IS_AVAILABLE --> IS_EXPIRED : 期限切れ（8章）
-
-    IS_COLLECTING --> IS_INVALIDATED : 対象メニューの販売終了（8.1）
-    IS_AVAILABLE --> IS_INVALIDATED : 対象メニューの販売終了（8.1）
-    IS_USED --> IS_INVALIDATED : キャンセル時に販売終了済み（7.1）
-
-    IS_EXPIRED --> [*]
-    IS_INVALIDATED --> [*]
-```
+![UserCoupon の状態遷移](./images/user_coupon_state.svg)
 
 図で読み取ってほしいのは 3 点。
 
@@ -410,26 +382,11 @@ WHERE user_coupon_id = ?
 4. `UserCouponStamp` を 1 件追加する。
 5. スタンプ数が `requiredStampCount` に達したら、`state` を `IS_AVAILABLE` に更新する。
 
-```mermaid
-flowchart TD
-    S([受け渡し完了]) --> Q1{1. 貯め中の<br/>会員クーポンがある}
-    Q1 -->|ない| Q4{貯め先にできる<br/>マスタがある}
-    Q1 -->|ある| Q2{期限が切れている}
-    Q2 -->|切れている| EX[2. IS_EXPIRED にして<br/>スタンプを削除]
-    EX --> Q4
-    Q2 -->|生きている / 無期限| ST
-    Q4 -->|ある| MK[3. 貯め先を作る<br/>IS_COLLECTING で追加]
-    Q4 -->|ない| NG([スタンプを押さずに終了])
-    MK --> ST[4. スタンプを 1 件追加]
-    ST --> Q3{必要数に達した}
-    Q3 -->|達した| AV[5. IS_AVAILABLE に更新]
-    Q3 -->|まだ| E([終了])
-    AV --> E
-```
+![受け渡し完了時の処理](./images/delivery_flow.svg)
 
 ステップ 1〜5 は 1 トランザクションで行う（4.2）。
 
-図の右下、貯め先にできるマスタが 1 件も無い経路に注意する。この受け渡しにはスタンプが押されず、記録も残らない。ステップ 3 の条件は `state` が `IS_ACTIVE` かつ配布期間内かつ `requiredStampCount > 0` の 3 つで、3 つすべてを満たすマスタが 1 件も無ければこの経路に落ちる。キャンペーンの切り替え日にバッチが走る前や、配布期間に隙間がある場合に起こり得る（8.2.1）。
+図の赤い経路、貯め先にできるマスタが 1 件も無い場合に注意する。この受け渡しにはスタンプが押されず、記録も残らない。ステップ 3 の条件は `state` が `IS_ACTIVE` かつ配布期間内かつ `requiredStampCount > 0` の 3 つで、3 つすべてを満たすマスタが 1 件も無ければこの経路に落ちる。キャンペーンの切り替え日にバッチが走る前や、配布期間に隙間がある場合に起こり得る（8.2.1）。
 
 ステップ 3 が今回の設計の核心である。1 個目のスタンプと同時にクーポンが作られるため、スタンプが親のない状態で存在することがない。
 

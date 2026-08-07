@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 340" width="1120" height="340" font-family="Hiragino Kaku Gothic ProN, Yu Gothic, Meiryo, sans-serif">
+  <style>
+    .box   { fill: #f7f8fa; stroke: #46536b; stroke-width: 1.6; }
+    .term  { fill: #eeeeee; stroke: #8a8a8a; stroke-width: 1.6; }
+    .name  { font-size: 15px; font-weight: bold; fill: #1a202c; }
+    .sub   { font-size: 11.5px; fill: #5a6478; }
+    .edge  { stroke: #46536b; stroke-width: 1.5; fill: none; }
+    .edgeB { stroke: #2b6a8f; stroke-width: 1.5; fill: none; }
+    .lbl   { font-size: 12px; fill: #2d3748; }
+    .lblB  { font-size: 12px; fill: #2b6a8f; }
+  </style>
+
+  <rect x="0" y="0" width="1120" height="340" fill="#ffffff"/>
+  <defs>
+    <marker id="ca" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,1 L9,5 L0,9 z" fill="#46536b"/>
+    </marker>
+    <marker id="cb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,1 L9,5 L0,9 z" fill="#2b6a8f"/>
+    </marker>
+    <marker id="cg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,1 L9,5 L0,9 z" fill="#8a8a8a"/>
+    </marker>
+  </defs>
+
+  <!-- 開始 -->
+  <circle cx="42" cy="120" r="7" fill="#46536b"/>
+  <path class="edge" d="M49,120 L106,120" marker-end="url(#ca)"/>
+  <text class="lbl" x="42" y="146">登録する</text>
+
+  <!-- 3 状態 -->
+  <rect class="box" x="110" y="90" width="170" height="60" rx="6"/>
+  <text class="name" x="195" y="115" text-anchor="middle">IS_PREPARING</text>
+  <text class="sub"  x="195" y="134" text-anchor="middle">準備中 ・ code 0</text>
+
+  <rect class="box" x="480" y="90" width="170" height="60" rx="6"/>
+  <text class="name" x="565" y="115" text-anchor="middle">IS_ACTIVE</text>
+  <text class="sub"  x="565" y="134" text-anchor="middle">配布中 ・ code 1</text>
+
+  <rect class="term" x="850" y="90" width="170" height="60" rx="6"/>
+  <text class="name" x="935" y="115" text-anchor="middle">IS_INACTIVE</text>
+  <text class="sub"  x="935" y="134" text-anchor="middle" fill="#6a6a6a">配布終了 ・ code -1</text>
+
+  <!-- PREPARING -> ACTIVE -->
+  <path class="edge"  d="M280,106 L476,106" marker-end="url(#ca)"/>
+  <text class="lbl"  x="378" y="96" text-anchor="middle">開始日が来た（8.2）</text>
+  <path class="edgeB" d="M280,134 L476,134" marker-end="url(#cb)"/>
+  <text class="lblB" x="378" y="154" text-anchor="middle">即日で始める（8.1・8.2.1）</text>
+
+  <!-- ACTIVE -> INACTIVE -->
+  <path class="edge"  d="M650,106 L846,106" marker-end="url(#ca)"/>
+  <text class="lbl"  x="748" y="96" text-anchor="middle">終了日を過ぎた（8.2）</text>
+  <path class="edgeB" d="M650,134 L846,134" marker-end="url(#cb)"/>
+  <text class="lblB" x="748" y="154" text-anchor="middle">販売終了・即日で終える（8.1）</text>
+
+  <!-- PREPARING -> INACTIVE（下を回す） -->
+  <path class="edge" d="M195,150 L195,250 L935,250 L935,154" marker-end="url(#ca)"/>
+  <text class="lbl" x="565" y="242" text-anchor="middle">対象メニューの販売終了（8.1）— 1 度も配らずに終わる</text>
+
+  <!-- 終端 -->
+  <path class="edge" d="M1020,120 L1046,120" stroke="#8a8a8a" marker-end="url(#cg)"/>
+  <circle cx="1060" cy="120" r="8" fill="none" stroke="#8a8a8a" stroke-width="1.6"/>
+  <circle cx="1060" cy="120" r="4" fill="#8a8a8a"/>
+
+  <!-- 凡例 -->
+  <rect x="110" y="302" width="18" height="3" fill="#46536b"/>
+  <text class="lbl" x="136" y="309">日次バッチが進める（8.2）</text>
+  <rect x="340" y="302" width="18" height="3" fill="#2b6a8f"/>
+  <text class="lblB" x="366" y="309">手で書き換える（8.1・8.2.1）</text>
+  <text class="lbl" x="620" y="309" fill="#8a8a8a">戻る矢印は無い。一方向にのみ進む</text>
+</svg>
