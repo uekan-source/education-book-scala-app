@@ -65,7 +65,7 @@
 
   <rect class="ng" x="28" y="600" width="180" height="60" rx="6"/>
   <text class="tng" x="118" y="624" text-anchor="middle">スタンプを押さずに</text>
-  <text class="tng" x="118" y="644" text-anchor="middle">終了（8.2.1）</text>
+  <text class="tng" x="118" y="644" text-anchor="middle">終了（5.6）</text>
 
   <!-- Q3 ある → 3 -->
   <path class="edge" d="M350,513 L350,541" marker-end="url(#fa)"/>
@@ -93,6 +93,6 @@
 
   <!-- 注記 -->
   <text class="lbl" x="520" y="729">ステップ 1〜5 は 1 トランザクション</text>
-  <text class="lbl" x="520" y="747">で行う（4.2）</text>
+  <text class="lbl" x="520" y="747">で行う（3.2）</text>
   <text class="lbl" x="520" y="775" fill="#b03a2e">赤の経路だけスタンプが押されない</text>
 </svg>

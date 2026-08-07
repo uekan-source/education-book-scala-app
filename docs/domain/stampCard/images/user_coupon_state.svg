@@ -26,7 +26,7 @@
   <!-- ===== 開始（2 経路） ===== -->
   <circle cx="245" cy="28" r="7" fill="#46536b"/>
   <path class="edge" d="M245,35 L245,66" marker-end="url(#ar)"/>
-  <text class="lbl" x="258" y="33">1 個目のスタンプ（第6章）</text>
+  <text class="lbl" x="258" y="33">1 個目のスタンプ（5.2）</text>
 
   <circle cx="565" cy="28" r="7" fill="#46536b"/>
   <path class="edge" d="M565,35 L565,66" marker-end="url(#ar)"/>
@@ -95,6 +95,6 @@
   <rect x="160" y="462" width="18" height="3" fill="#46536b"/>
   <text class="lbl" x="186" y="469">通常の遷移</text>
   <rect x="300" y="462" width="18" height="3" fill="#b03a2e"/>
-  <text class="lblR" x="326" y="469">注文キャンセルに伴う遷移（7.1）</text>
+  <text class="lblR" x="326" y="469">注文キャンセルに伴う遷移（5.3）</text>
   <text class="lbl" x="600" y="469" fill="#8a8a8a">二重丸は終端。ここから先へ進まない</text>
 </svg>
