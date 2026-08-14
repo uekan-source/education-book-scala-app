@@ -185,17 +185,27 @@ rule         → 対になる値（何円で 1 個か）が必要になる
 
 **型では守れないので、必ず文章で書く。** 書かないと実装者ごとに解釈が変わる。
 
-### 変更が稀な値は、フィールドではなく `enum` に持たせる
+### 変更が稀な値は、フィールドではなく定数に置く
 
 `StampCard.rule` に「何円で 1 個か」のフィールドが無い点を穴だと思ったが、ボスの判断は「**関数か定数で計算すればいい。そこまで変わる情報ではない**」だった。
 
+置き場所は **`enum` の中ではなく、コンパニオンオブジェクトの定数か、API 側の設定**。
+
 ```scala
-enum Rule(val code: Short, val name: String, val unit: Int) extends EnumStatus[Short]:
-  case IS_PAYMENT_COUNT  extends Rule(code = 1, name = "会計回数", unit = 1)
-  case IS_PAYMENT_AMOUNT extends Rule(code = 2, name = "会計金額", unit = 500)
+object StampCard:
+
+  // --[ Constants ]---------------------------------------------------
+  /** 会計金額ルールで、スタンプ 1 個あたりの金額 */
+  val PaymentAmountUnit: Int = 500
+
+  enum Rule(val code: Short, val name: String) extends EnumStatus[Short]:
+    case IS_PAYMENT_COUNT  extends Rule(code = 1, name = "会計回数")
+    case IS_PAYMENT_AMOUNT extends Rule(code = 2, name = "会計金額")
 ```
 
-こう書くと **「区分値が隣のフィールドの読み方を決める」という形自体が消える。** 読み方も値も `enum` の中で完結するので、無効な組み合わせを作れない。**`ruleValue` をフィールドで持つより厳しい。**
+**`enum` が持っていいのは区分値そのものの属性まで。** `code` は DB に入る値、`name` はその表示名で、どちらも「その区分が何か」を説明している。`unit`（何円で 1 個か）は**業務の設定値**であって区分の説明ではない。
+
+混ぜると **金額を変えるたびに区分値の定義行を書き換える**ことになる。区分値の定義は本来安定しているべき場所なので、変更の理由が違うものを同居させない。
 
 代償は 2 つ。**台帳ごとに単位を変えられない**ことと、**変更後に過去がどの基準で押されたか再現できない**こと。どちらも「今はそうならない」前提の上に成立しているので、**判断が変わる条件として書いておく。**
 
