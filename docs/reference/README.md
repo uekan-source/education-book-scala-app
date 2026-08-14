@@ -11,6 +11,7 @@
 | [`curriculum_02_burger_domain.md`](./curriculum_02_burger_domain.md) | **命名規則（接頭辞・テーブル名）、`common` の 3 条件、コンテキストの判断軸。** 最も頻繁に参照する | 教材の写し |
 | [`curriculum_03_worked_example.md`](./curriculum_03_worked_example.md) | 記入例（営業時間と臨時休業）。テンプレート、提出版の実物、`1:1` と `1:*` の決め方 | 教材の写し |
 | [`curriculum_04_naming.md`](./curriculum_04_naming.md) | 命名を評価で決める 7 軸、AI へのプロンプト、テーブル名を単数形にする理由 | 教材の写し |
+| [`model_templates.md`](./model_templates.md) | **雛形モデル 24 個の全文**（`edu.common` / `edu.customer` / `edu.shop`）。フィールド・区分値・`extension` まで。**書き方の作法はここを真似る** | ボスが精査して作ったもの |
 
 ## どの場面でどれを読むか
 
@@ -26,6 +27,9 @@
 | `1:1` にするか `1:*` にするか | `curriculum_03_worked_example.md`（付録C） |
 | 書く分量が分からない | `curriculum_01_guide_and_exercises.md`（分量の目安） |
 | 提出物に何を書くか | `curriculum_01_guide_and_exercises.md`（提出物の形式） |
+| **`case class` の書き方（セクション区切り・コメントの粒度・`WithNoId`）** | `model_templates.md` |
+| **区分値の `code` の振り方、`name` を持たせるかどうか** | `model_templates.md` |
+| **既存のエンティティが何を持っているか** | `model_templates.md` |
 
 ## 教材の写しについて
 
