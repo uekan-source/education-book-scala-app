@@ -2,6 +2,8 @@
 
 設計の判断で迷ったとき、**まずこの索引を見て、該当するファイルだけを読む。** 全部読む必要はない。
 
+> ⚠️ **手順の正は `docs/notes/design_procedure.md`（9 段階）。** ここにある教材の「5 ステップ」は原典であって、回すのはあちら。
+
 ## ファイル一覧
 
 | ファイル | 何が書いてあるか | 出どころ |
@@ -75,7 +77,7 @@
 | | `model_templates.md`（08-14） | `upstream/chapter-03`（現在） |
 |---|---|---|
 | モデル数 | 24 | **25** |
-| `PaymentItem` | 全文コメントアウト | **本実装。`productName` / `productCategory` まで写す** |
+| `PaymentItem` | **無い**（写しに含まれない） | **本実装。`productName` / `productCategory` まで写す** |
 | `PaymentDiscount` | `discountProductId: Product.Id` | **`discountItemId: PaymentItem.Id`** |
 | `shopId` | `PaymentDiscount` に無し | **`Shop` 以外の全 10 モデルに有り** |
 | 店舗独自商品 | `BuyItem` / `OrderItem` が持てない | **`productCustomId` を追加済み** |

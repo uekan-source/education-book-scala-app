@@ -425,7 +425,7 @@
 
 **軸が足りないと気づいたら足して、全候補を付け直す。** 増えた軸こそ、その設計でいちばん効いている論点。
 
-テーブル名の規約は `../reference/curriculum_02_burger_domain.md`。
+テーブル名の規約は `../reference/curriculum_02_burger_domain.md`。7 軸の原典と**実際に 4 回書き直した記録**は `../reference/curriculum_04_naming.md`。
 
 ### AI に名前を評価させるプロンプト
 

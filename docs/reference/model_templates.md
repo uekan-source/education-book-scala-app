@@ -5,8 +5,8 @@
 **加工しない。** 要約・整形をせず、共有されたまま貼る。
 
 全 24 モデル。`edu.common` 7 / `edu.customer` 7 / `edu.shop` 10。
-このほかに `edu.shop.model.PaymentItem`（決済明細）がリポジトリに存在するが、
-`Payment` / `Product` / `CustomProduct` 待ちで**全文コメントアウト**されている。
+**この写しは古い。** その後 `PaymentItem`（決済明細）が本実装され、`upstream/chapter-03` ブランチは
+**25 モデル**になっている。差分は `README.md` の「モデルの実物はブランチにある」を見る。
 
 | コンテキスト | モデル |
 |---|---|
